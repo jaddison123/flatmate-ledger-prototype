@@ -11,6 +11,7 @@ export interface Chore {
   assigneeId: string | null;
   dueDate: string | null;
   completed: boolean;
+  completedWeek?: string;
 }
 
 export interface Expense {
@@ -55,7 +56,8 @@ function isChore(value: unknown): value is Chore {
     typeof value.title === "string" &&
     (typeof value.assigneeId === "string" || value.assigneeId === null) &&
     (typeof value.dueDate === "string" || value.dueDate === null) &&
-    typeof value.completed === "boolean"
+    typeof value.completed === "boolean" &&
+    (value.completedWeek === undefined || typeof value.completedWeek === "string")
   );
 }
 
