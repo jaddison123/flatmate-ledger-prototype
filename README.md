@@ -17,3 +17,15 @@ npm run dev
 
 Tailwind CSS v4 is configured through the Vite plugin in `vite.config.ts`; add
 utility classes in the React components and global styles in `src/index.css`.
+
+## Household data
+
+`useHouseholdData` in `src/hooks/useHouseholdData.ts` provides typed roommate,
+chore, and expense state backed by browser `localStorage`. It returns each
+collection, add/update/remove methods, and a `storageError` message if saved
+data cannot be read or written. For example:
+
+```tsx
+const { roommates, addRoommate } = useHouseholdData();
+addRoommate({ name: "Alex" });
+```
