@@ -39,7 +39,6 @@ function App() {
     roommates,
     chores,
     expenses,
-    chatMessages,
     chatUsername,
     storageError,
     addRoommate,
@@ -49,7 +48,6 @@ function App() {
     removeChore,
     addExpense,
     removeExpense,
-    addChatMessage,
     setChatUsername,
   } = useHouseholdData();
   const [darkMode, setDarkMode] = useState(false);
@@ -437,13 +435,7 @@ function App() {
           />
           <HomeChat
             username={chatUsername}
-            messages={chatMessages}
             onUsernameChange={setChatUsername}
-            onSend={(username, text) => addChatMessage({
-              username,
-              text,
-              createdAt: new Date().toISOString(),
-            })}
           />
         </section>
 
