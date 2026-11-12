@@ -23,10 +23,19 @@ export interface Expense {
   date: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  username: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface HouseholdData {
   roommates: Roommate[];
   chores: Chore[];
   expenses: Expense[];
+  chatMessages: ChatMessage[];
+  chatUsername: string;
 }
 
 const STORAGE_KEY = "flatmate-ledger:household:v1";
@@ -35,6 +44,8 @@ const EMPTY_HOUSEHOLD: HouseholdData = {
   roommates: [],
   chores: [],
   expenses: [],
+  chatMessages: [],
+  chatUsername: "",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -75,7 +86,23 @@ function isExpense(value: unknown): value is Expense {
   );
 }
 
-function isHouseholdData(value: unknown): value is HouseholdData {
+function isChatMessage(value: unknown): value is ChatMessage {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.username === "string" &&
+    typeof value.text === "string" &&
+    typeof value.createdAt === "string"
+  );
+}
+
+type StoredHouseholdData = Omit<
+  HouseholdData,
+  "chatMessages" | "chatUsername"
+> &
+  Partial<Pick<HouseholdData, "chatMessages" | "chatUsername">>;
+
+function isHouseholdData(value: unknown): value is StoredHouseholdData {
   return (
     isRecord(value) &&
     Array.isArray(value.roommates) &&
@@ -83,7 +110,10 @@ function isHouseholdData(value: unknown): value is HouseholdData {
     Array.isArray(value.chores) &&
     value.chores.every(isChore) &&
     Array.isArray(value.expenses) &&
-    value.expenses.every(isExpense)
+    value.expenses.every(isExpense) &&
+    (value.chatMessages === undefined ||
+      (Array.isArray(value.chatMessages) && value.chatMessages.every(isChatMessage))) &&
+    (value.chatUsername === undefined || typeof value.chatUsername === "string")
   );
 }
 
@@ -106,7 +136,14 @@ function readHouseholdData(): { data: HouseholdData; error: string | null } {
       };
     }
 
-    return { data: parsed, error: null };
+    return {
+      data: {
+        ...parsed,
+        chatMessages: parsed.chatMessages ?? [],
+        chatUsername: parsed.chatUsername ?? "",
+      },
+      error: null,
+    };
   } catch {
     return {
       data: EMPTY_HOUSEHOLD,
@@ -227,6 +264,19 @@ export function useHouseholdData() {
     }));
   }
 
+  function addChatMessage(message: Omit<ChatMessage, "id">): string {
+    const id = createId();
+    setData((current) => ({
+      ...current,
+      chatMessages: [...current.chatMessages, { ...message, id }],
+    }));
+    return id;
+  }
+
+  function setChatUsername(chatUsername: string): void {
+    setData((current) => ({ ...current, chatUsername }));
+  }
+
   return {
     ...data,
     storageError,
@@ -239,5 +289,7 @@ export function useHouseholdData() {
     addExpense,
     updateExpense,
     removeExpense,
+    addChatMessage,
+    setChatUsername,
   };
 }

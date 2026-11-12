@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useHouseholdData } from "./hooks/useHouseholdData";
+import BillTracker from "./components/BillTracker";
+import HomeChat from "./components/HomeChat";
 
 type ChoreFilter = "all" | "open" | "done";
 
@@ -36,12 +38,19 @@ function App() {
   const {
     roommates,
     chores,
+    expenses,
+    chatMessages,
+    chatUsername,
     storageError,
     addRoommate,
     removeRoommate,
     addChore,
     updateChore,
     removeChore,
+    addExpense,
+    removeExpense,
+    addChatMessage,
+    setChatUsername,
   } = useHouseholdData();
   const [darkMode, setDarkMode] = useState(false);
   const [filter, setFilter] = useState<ChoreFilter>("all");
@@ -417,6 +426,25 @@ function App() {
             <span><b>✳</b> GOOD ROOMMATES. GREAT HOUSE.</span>
             <span>ONE WEEK AT A TIME.</span>
           </div>
+        </section>
+
+        <section className="household-features" aria-label="Household tools">
+          <BillTracker
+            roommates={roommates}
+            expenses={expenses}
+            onAdd={addExpense}
+            onRemove={removeExpense}
+          />
+          <HomeChat
+            username={chatUsername}
+            messages={chatMessages}
+            onUsernameChange={setChatUsername}
+            onSend={(username, text) => addChatMessage({
+              username,
+              text,
+              createdAt: new Date().toISOString(),
+            })}
+          />
         </section>
 
         <footer className="page-footer">
