@@ -10,7 +10,10 @@
   font-weight: 400;
   color: #242323;
   background: #e8e7e4;
-  font-feature-settings: "ss01" on;
+  /* No stylistic alternates or ligatures: they garble letters like A, M and E in Impact. */
+  font-feature-settings: normal;
+  font-variant-ligatures: none;
+  font-variant-alternates: normal;
   --paper: #f5f4f1;
   --paper-raised: #fbfaf8;
   --paper-muted: #e9e7e4;
