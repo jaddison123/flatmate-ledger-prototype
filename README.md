@@ -133,7 +133,7 @@ Optional environment variables: `PORT`, `CHAT_PORT` (default 3001), `CHAT_HOST`,
 ## Known limitations
 
 - There are no accounts. Anyone with a house's invite link can see and change everything in it, so only share the link with your housemates. Codes are long and random, so they cannot be guessed.
-- A chat name belongs to the device that first used it (via a secret key in that browser), so nobody else in the house can post or react under it. Using the same name on a second device, or after clearing the browser's data, isn't possible; pick a slightly different name. Changing your name frees the old one for others.
+- A chat name belongs to the device that first used it (via a secret key in that browser), so nobody else in the house can post or react under it. Using the same name on a second device, or after clearing the browser's data, isn't possible; pick a slightly different name. Once you've sent a message or reacted under a name, it stays yours even if you change name later.
 - The server limits how fast people can make changes (30 per 10 seconds each) and post (5 messages per 10 seconds each, 30 per minute per house, 120 per minute overall), and how many houses can be created (5 per 10 minutes each).
 - Changes need a connection. While offline you see the last saved copy, but edits are not queued.
 - Bills show net balances only. There is no "who pays whom" breakdown and no way to record a repayment.

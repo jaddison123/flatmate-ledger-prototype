@@ -100,8 +100,10 @@ async function loadHouse(code) {
 //
 // To stop people posting as someone else, each chat name belongs to one device. A device has a
 // random secret `token` (kept in its localStorage); the server stores only its SHA-256 hash.
-// The first device to use a name claims it; other devices get a 409 until it is released
-// (a device holds one name at a time, so renaming releases the old one).
+// The first device to use a name claims it; other devices get a 409. Once a name has been used
+// to send a message or react it is `used` and stays reserved for that device for good, so nobody
+// can later post under the name shown on old messages. Names a device only typed (never used)
+// are released when it switches to another name.
 // Messages also carry `senderId`, a short public id derived from the hash, so a browser can
 // tell its own messages apart even from someone who later takes over an old name.
 
@@ -112,7 +114,7 @@ function loadMembers(value) {
   if (!isRecord(value)) return members;
   for (const [key, member] of Object.entries(value)) {
     if (isRecord(member) && typeof member.name === "string" && typeof member.hash === "string") {
-      members[key] = { name: member.name, hash: member.hash };
+      members[key] = { name: member.name, hash: member.hash, used: member.used === true };
     }
   }
   return members;
@@ -137,24 +139,32 @@ function holdsName(house, name, hash) {
 }
 
 /**
- * Gives `name` to the device with `hash` (releasing any other name it held). Throws 409 if
+ * Gives `name` to the device with `hash`, releasing any other names it held but never used.
+ * Pass `use: true` when sending or reacting, which reserves the name for good. Throws 409 if
  * another device holds it. Returns true if anything changed (so the caller saves).
  */
-function claimName(house, name, hash) {
+function claimName(house, name, hash, { use = false } = {}) {
   const key = nameKey(name);
   const holder = house.members[key];
   if (holder && holder.hash !== hash) {
     throw httpError(409, `“${holder.name}” is already used by someone else in this house. Pick another name.`);
   }
-  if (holder && holder.name === name) return false;
   if (!holder && Object.keys(house.members).length >= maxMembers) {
     throw httpError(409, "This house has too many chat names. Ask someone to free one up.");
   }
+  let changed = false;
   for (const [otherKey, member] of Object.entries(house.members)) {
-    if (member.hash === hash && otherKey !== key) delete house.members[otherKey];
+    if (member.hash === hash && otherKey !== key && !member.used) {
+      delete house.members[otherKey];
+      changed = true;
+    }
   }
-  house.members[key] = { name, hash };
-  return true;
+  const used = use || holder?.used === true;
+  if (!holder || holder.name !== name || holder.used !== used) {
+    house.members[key] = { name, hash, used };
+    changed = true;
+  }
+  return changed;
 }
 
 /** Loads a house once and keeps it in memory; resolves to null if it does not exist. */
@@ -386,7 +396,7 @@ async function handleChat(house, route, request, response) {
       throw httpError(400, "Message must be between 1 and 500 characters.");
     }
     const hash = memberHash(body);
-    claimName(house, username, hash); // 409 if someone else's name; saved with the message below
+    claimName(house, username, hash, { use: true }); // 409 if someone else's; saved with the message
     const message = withExtras({
       id: randomUUID(),
       username,
@@ -413,7 +423,7 @@ async function handleChat(house, route, request, response) {
     }
     const target = house.messages.find((message) => message.id === id);
     if (!target) throw httpError(404, "Message not found.");
-    claimName(house, username, memberHash(body)); // saved with the reaction below
+    claimName(house, username, memberHash(body), { use: true }); // saved with the reaction below
     const reactions = { ...target.reactions };
     const users = reactions[emoji] ?? [];
     const next = users.includes(username)

@@ -1668,6 +1668,8 @@ a {
 .wa-form { display: flex; align-items: center; gap: 8px; padding: 8px; background: #efe7dc; }
 .wa-input-pill {
   flex: 1;
+  /* Let the pill shrink on narrow phones so the send button is never pushed off the edge. */
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1678,6 +1680,7 @@ a {
 }
 .wa-input-pill input {
   flex: 1;
+  width: 100%;
   min-width: 0;
   padding: 9px 4px;
   border: 0;
