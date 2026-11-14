@@ -1,291 +1,228 @@
-import { useEffect, useRef, useState } from "react";
+// A house's shared data (housemates, chores, bills, notes, name), kept in sync with the server.
+//
+// The server is the source of truth. Each change is sent as an "action"; it shows on screen at
+// once (an optimistic copy) and is replaced by the server's version when that arrives over the
+// live event stream or in the reply. If the server rejects a change, it simply disappears and an
+// error is shown. The last copy seen is cached in localStorage so the page appears instantly
+// while the server wakes up.
+import { useEffect, useMemo, useState } from "react";
+import {
+  applyAction,
+  emptyHousehold,
+  normalizeHousehold,
+  type ChoreUpdates,
+  type Chore,
+  type Expense,
+  type Household,
+  type HouseholdAction,
+} from "../../shared/household.mjs";
+import {
+  ApiError,
+  apiRequest,
+  readChatName,
+  readHouseCache,
+  saveChatName,
+  writeHouseCache,
+} from "../lib/house";
 
-export interface Roommate {
+export type { Chore, Expense, Household, Note, Roommate } from "../../shared/household.mjs";
+
+/** connecting: first load; live: in sync; reconnecting: connection lost; missing: no such house. */
+export type SyncStatus = "connecting" | "live" | "reconnecting" | "missing";
+
+interface Snapshot {
+  version: number;
+  household: Household;
+}
+
+interface PendingAction {
   id: string;
-  name: string;
+  action: HouseholdAction;
 }
 
-export interface Chore {
-  id: string;
-  title: string;
-  assigneeId: string | null;
-  dueDate: string | null;
-  completed: boolean;
-  completedWeek?: string;
-}
-
-export interface Expense {
-  id: string;
-  title: string;
-  amount: number;
-  paidById: string;
-  splitBetweenIds: string[];
-  date: string;
-}
-
-/** A short reminder or note that is not a chore (e.g. "Landlord visiting Friday"). */
-export interface Note {
-  id: string;
-  text: string;
-  createdAt: string;
-}
-
-export interface HouseholdData {
-  roommates: Roommate[];
-  chores: Chore[];
-  expenses: Expense[];
-  notes: Note[];
-  chatUsername: string;
-  /** Display name of the house, shown in the hero and top bar. Empty = default. */
-  householdName: string;
-}
-
-const STORAGE_KEY = "flatmate-ledger:household:v1";
-
-const EMPTY_HOUSEHOLD: HouseholdData = {
-  roommates: [],
-  chores: [],
-  expenses: [],
-  notes: [],
-  chatUsername: "",
-  householdName: "",
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isRoommate(value: unknown): value is Roommate {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.name === "string"
-  );
-}
-
-function isChore(value: unknown): value is Chore {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.title === "string" &&
-    (typeof value.assigneeId === "string" || value.assigneeId === null) &&
-    (typeof value.dueDate === "string" || value.dueDate === null) &&
-    typeof value.completed === "boolean" &&
-    (value.completedWeek === undefined || typeof value.completedWeek === "string")
-  );
-}
-
-function isExpense(value: unknown): value is Expense {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.title === "string" &&
-    typeof value.amount === "number" &&
-    Number.isFinite(value.amount) &&
-    typeof value.paidById === "string" &&
-    Array.isArray(value.splitBetweenIds) &&
-    value.splitBetweenIds.every((id) => typeof id === "string") &&
-    typeof value.date === "string"
-  );
-}
-
-function isNote(value: unknown): value is Note {
-  return (
-    isRecord(value) &&
-    typeof value.id === "string" &&
-    typeof value.text === "string" &&
-    typeof value.createdAt === "string"
-  );
-}
-
-// Fields added after the first release are optional so older saved data still loads.
-type StoredHouseholdData = Omit<HouseholdData, "chatUsername" | "householdName" | "notes"> & {
-  notes?: Note[];
-  chatUsername?: string;
-  householdName?: string;
-};
-
-function isHouseholdData(value: unknown): value is StoredHouseholdData {
-  return (
-    isRecord(value) &&
-    Array.isArray(value.roommates) &&
-    value.roommates.every(isRoommate) &&
-    Array.isArray(value.chores) &&
-    value.chores.every(isChore) &&
-    Array.isArray(value.expenses) &&
-    value.expenses.every(isExpense) &&
-    (value.notes === undefined || (Array.isArray(value.notes) && value.notes.every(isNote))) &&
-    (value.chatUsername === undefined || typeof value.chatUsername === "string") &&
-    (value.householdName === undefined || typeof value.householdName === "string")
-  );
-}
-
-function readHouseholdData(): { data: HouseholdData; error: string | null } {
-  if (typeof window === "undefined") {
-    return { data: EMPTY_HOUSEHOLD, error: null };
-  }
-
-  try {
-    const storedData = window.localStorage.getItem(STORAGE_KEY);
-    if (storedData === null) {
-      return { data: EMPTY_HOUSEHOLD, error: null };
-    }
-
-    const parsed: unknown = JSON.parse(storedData);
-    if (!isHouseholdData(parsed)) {
-      return {
-        data: EMPTY_HOUSEHOLD,
-        error: "Saved household data has an invalid format.",
-      };
-    }
-
-    return {
-      data: {
-        roommates: parsed.roommates,
-        chores: parsed.chores,
-        expenses: parsed.expenses,
-        notes: parsed.notes ?? [],
-        chatUsername: parsed.chatUsername ?? "",
-        householdName: parsed.householdName ?? "",
-      },
-      error: null,
-    };
-  } catch {
-    return {
-      data: EMPTY_HOUSEHOLD,
-      error: "Could not read household data from localStorage.",
-    };
-  }
-}
+const RETRY_DELAY_MS = 4000;
 
 function createId(): string {
   return globalThis.crypto?.randomUUID?.() ??
     `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function updateById<T extends { id: string }>(
-  items: T[],
-  id: string,
-  updates: Partial<Omit<T, "id">>,
-): T[] {
-  return items.map((item) => (item.id === id ? { ...item, ...updates } : item));
+/** Validates a `{ version, household, actionId? }` value sent by the server. */
+function parseSnapshot(value: unknown): (Snapshot & { actionId?: string }) | null {
+  if (typeof value !== "object" || value === null) return null;
+  const { version, household, actionId } = value as Record<string, unknown>;
+  const clean = normalizeHousehold(household);
+  if (typeof version !== "number" || !clean) return null;
+  return { version, household: clean, ...(typeof actionId === "string" ? { actionId } : {}) };
 }
 
-function removeById<T extends { id: string }>(items: T[], id: string): T[] {
-  return items.filter((item) => item.id !== id);
+function parseEvent(event: Event) {
+  try {
+    return parseSnapshot(JSON.parse((event as MessageEvent<string>).data));
+  } catch {
+    return null;
+  }
 }
 
-export function useHouseholdData() {
-  const [initial] = useState(readHouseholdData);
-  const [data, setData] = useState(initial.data);
-  const [storageError, setStorageError] = useState(initial.error);
-  const lastPersistedData = useRef(data);
+export function useHouseholdData(houseCode: string) {
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(() => readHouseCache(houseCode));
+  const [pending, setPending] = useState<PendingAction[]>([]);
+  const [status, setStatus] = useState<SyncStatus>("connecting");
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [chatUsername, setChatUsernameState] = useState(readChatName);
+  // Bumped to start over (fetch + new event stream) after the connection fails for good.
+  const [attempt, setAttempt] = useState(0);
+
+  /** Takes a server copy if it is newer than ours (or always, for a fresh full snapshot). */
+  function acceptSnapshot(next: Snapshot, always = false) {
+    setSnapshot((current) =>
+      always || !current || next.version > current.version
+        ? { version: next.version, household: next.household }
+        : current,
+    );
+  }
 
   useEffect(() => {
-    if (data === lastPersistedData.current) {
-      return;
+    let cancelled = false;
+    let source: EventSource | null = null;
+    let retryTimer: number | undefined;
+
+    function retrySoon() {
+      retryTimer = window.setTimeout(() => setAttempt((count) => count + 1), RETRY_DELAY_MS);
     }
 
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      lastPersistedData.current = data;
-      setStorageError(null);
-    } catch {
-      setStorageError("Could not save household data to localStorage.");
-    }
-  }, [data]);
+    // Check the house exists first: an EventSource cannot tell us about a 404.
+    apiRequest<unknown>(`/api/houses/${houseCode}`)
+      .then((result) => {
+        if (cancelled) return;
+        const fresh = parseSnapshot(result);
+        if (fresh) acceptSnapshot(fresh, true);
 
-  function addRoommate(roommate: Omit<Roommate, "id">): string {
+        source = new EventSource(`/api/houses/${houseCode}/events`);
+        source.onerror = () => {
+          setStatus("reconnecting");
+          // The browser retries dropped streams itself, but gives up after an error response
+          // (e.g. the server restarted and lost the house), so start over in that case.
+          if (source?.readyState === EventSource.CLOSED) {
+            source.close();
+            retrySoon();
+          }
+        };
+        source.addEventListener("snapshot", (event) => {
+          const next = parseEvent(event);
+          if (!next) return;
+          acceptSnapshot(next, true);
+          setStatus("live");
+          setSyncError(null);
+        });
+        source.addEventListener("household", (event) => {
+          const next = parseEvent(event);
+          if (!next) return;
+          acceptSnapshot(next);
+          if (next.actionId) setPending((current) => current.filter((item) => item.id !== next.actionId));
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        if (error instanceof ApiError && error.status === 404) {
+          setStatus("missing");
+          return;
+        }
+        setStatus("reconnecting");
+        retrySoon();
+      });
+
+    return () => {
+      cancelled = true;
+      source?.close();
+      window.clearTimeout(retryTimer);
+    };
+  }, [houseCode, attempt]);
+
+  // Remember the latest server copy on this device.
+  useEffect(() => {
+    if (snapshot) writeHouseCache(houseCode, snapshot);
+  }, [houseCode, snapshot]);
+
+  // What the page shows: the server's copy plus our changes it has not confirmed yet.
+  const household = useMemo(() => {
+    const base = snapshot?.household ?? emptyHousehold();
+    return pending.reduce((current, item) => {
+      try {
+        return applyAction(current, item.action);
+      } catch {
+        return current; // the server will reject it too
+      }
+    }, base);
+  }, [snapshot, pending]);
+
+  function dispatch(action: HouseholdAction): void {
     const id = createId();
-    setData((current) => ({
-      ...current,
-      roommates: [...current.roommates, { ...roommate, id }],
-    }));
-    return id;
-  }
-
-  function removeRoommate(id: string): void {
-    setData((current) => ({
-      ...current,
-      roommates: removeById(current.roommates, id),
-    }));
-  }
-
-  function addChore(chore: Omit<Chore, "id">): string {
-    const id = createId();
-    setData((current) => ({
-      ...current,
-      chores: [...current.chores, { ...chore, id }],
-    }));
-    return id;
-  }
-
-  function updateChore(id: string, updates: Partial<Omit<Chore, "id">>): void {
-    setData((current) => ({
-      ...current,
-      chores: updateById(current.chores, id, updates),
-    }));
-  }
-
-  function removeChore(id: string): void {
-    setData((current) => ({
-      ...current,
-      chores: removeById(current.chores, id),
-    }));
-  }
-
-  function addExpense(expense: Omit<Expense, "id">): string {
-    const id = createId();
-    setData((current) => ({
-      ...current,
-      expenses: [...current.expenses, { ...expense, id }],
-    }));
-    return id;
-  }
-
-  function removeExpense(id: string): void {
-    setData((current) => ({
-      ...current,
-      expenses: removeById(current.expenses, id),
-    }));
-  }
-
-  function setChatUsername(chatUsername: string): void {
-    setData((current) => ({ ...current, chatUsername }));
-  }
-
-  function addNote(text: string): void {
-    setData((current) => ({
-      ...current,
-      // Newest first
-      notes: [
-        { id: createId(), text, createdAt: new Date().toISOString() },
-        ...current.notes,
-      ],
-    }));
-  }
-
-  function removeNote(id: string): void {
-    setData((current) => ({ ...current, notes: removeById(current.notes, id) }));
-  }
-
-  function setHouseholdName(householdName: string): void {
-    setData((current) => ({ ...current, householdName }));
+    setPending((current) => [...current, { id, action }]);
+    apiRequest<unknown>(`/api/houses/${houseCode}/actions`, { actionId: id, action })
+      .then((result) => {
+        const confirmed = parseSnapshot(result);
+        if (confirmed) acceptSnapshot(confirmed);
+        setSyncError(null);
+      })
+      .catch((error: unknown) => {
+        const reason = error instanceof Error ? error.message : "Unknown error.";
+        setSyncError(`That change was not saved. ${reason}`);
+      })
+      .finally(() => setPending((current) => current.filter((item) => item.id !== id)));
   }
 
   return {
-    ...data,
-    storageError,
-    addNote,
-    removeNote,
-    setHouseholdName,
-    addRoommate,
-    removeRoommate,
-    addChore,
-    updateChore,
-    removeChore,
-    addExpense,
-    removeExpense,
-    setChatUsername,
+    ...household,
+    /** False until the house has loaded at least once (from the server or this device's cache). */
+    isLoaded: snapshot !== null,
+    status,
+    syncError,
+    chatUsername,
+    setChatUsername(name: string) {
+      setChatUsernameState(name);
+      saveChatName(name);
+    },
+    addRoommate(roommate: { name: string }): string {
+      const id = createId();
+      dispatch({ type: "addRoommate", roommate: { id, name: roommate.name } });
+      return id;
+    },
+    /** Also unassigns their chores. */
+    removeRoommate(id: string) {
+      dispatch({ type: "removeRoommate", id });
+    },
+    addChore(chore: Omit<Chore, "id">): string {
+      const id = createId();
+      dispatch({ type: "addChore", chore: { ...chore, id } });
+      return id;
+    },
+    updateChore(id: string, updates: ChoreUpdates) {
+      dispatch({ type: "updateChore", id, updates });
+    },
+    removeChore(id: string) {
+      dispatch({ type: "removeChore", id });
+    },
+    /** Passes each assigned chore to the next housemate and resets it for `week`. */
+    rotateRoster(week: string) {
+      dispatch({ type: "rotateRoster", week });
+    },
+    addExpense(expense: Omit<Expense, "id">): string {
+      const id = createId();
+      dispatch({ type: "addExpense", expense: { ...expense, id } });
+      return id;
+    },
+    removeExpense(id: string) {
+      dispatch({ type: "removeExpense", id });
+    },
+    addNote(text: string) {
+      dispatch({ type: "addNote", note: { id: createId(), text, createdAt: new Date().toISOString() } });
+    },
+    removeNote(id: string) {
+      dispatch({ type: "removeNote", id });
+    },
+    setHouseholdName(name: string) {
+      dispatch({ type: "setHouseholdName", name });
+    },
   };
 }

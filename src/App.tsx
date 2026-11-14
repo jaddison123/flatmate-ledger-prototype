@@ -1,8 +1,20 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useHouseholdData } from "./hooks/useHouseholdData";
+import { useHouseholdData, type Household } from "./hooks/useHouseholdData";
+import {
+  enterHouse,
+  formatHouseCode,
+  houseCodeFromUrl,
+  inviteLink,
+  leaveHouse,
+  readHouseCache,
+  readSavedHouseCode,
+} from "./lib/house";
+import { hasHouseholdContent } from "../shared/household.mjs";
 import BillTracker from "./components/BillTracker";
 import HomeChat from "./components/HomeChat";
+import HouseGate from "./components/HouseGate";
 import Notes from "./components/Notes";
+import TopBar from "./components/TopBar";
 
 type ChoreFilter = "all" | "open" | "done";
 
@@ -49,7 +61,17 @@ function readSavedDarkMode(): boolean {
 const FOCUSABLE =
   'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
 
-function App() {
+interface HouseDashboardProps {
+  houseCode: string;
+  darkMode: boolean;
+  onToggleTheme: () => void;
+  /** Forget this house on this device and go back to the start screen. */
+  onLeave: () => void;
+  /** The server says this house does not exist (wrong link, or its data was lost). */
+  onMissing: () => void;
+}
+
+function HouseDashboard({ houseCode, darkMode, onToggleTheme, onLeave, onMissing }: HouseDashboardProps) {
   const {
     roommates,
     chores,
@@ -60,17 +82,20 @@ function App() {
     chatUsername,
     householdName,
     setHouseholdName,
-    storageError,
+    isLoaded,
+    status,
+    syncError,
     addRoommate,
     removeRoommate,
     addChore,
     updateChore,
     removeChore,
+    rotateRoster,
     addExpense,
     removeExpense,
     setChatUsername,
-  } = useHouseholdData();
-  const [darkMode, setDarkMode] = useState(readSavedDarkMode);
+  } = useHouseholdData(houseCode);
+  const [copied, setCopied] = useState(false);
   const dialogRef = useRef<HTMLElement>(null);
   const dialogOpenerRef = useRef<HTMLElement | null>(null);
   const [filter, setFilter] = useState<ChoreFilter>("all");
@@ -109,14 +134,9 @@ function App() {
     return () => window.clearTimeout(timeoutId);
   }, [today]);
 
-  // Remember the theme between visits.
   useEffect(() => {
-    try {
-      window.localStorage.setItem(THEME_KEY, darkMode ? "dark" : "light");
-    } catch {
-      /* theme still works for this visit if storage is unavailable */
-    }
-  }, [darkMode]);
+    if (status === "missing") onMissing();
+  }, [status, onMissing]);
 
   // Housemates dialog: Escape closes it, Tab stays inside it, and focus returns to
   // the button that opened it.
@@ -220,58 +240,57 @@ function App() {
     setFormError("");
   }
 
-  function handleRemoveRoommate(id: string) {
-    removeRoommate(id);
-    chores.forEach((chore) => {
-      if (chore.assigneeId === id) updateChore(chore.id, { assigneeId: null });
-    });
+  async function copyInviteLink() {
+    try {
+      await navigator.clipboard.writeText(inviteLink(houseCode));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard needs HTTPS (or localhost); otherwise select the link for a manual copy.
+      document.querySelector<HTMLInputElement>("#invite-link")?.select();
+    }
   }
 
-  function rotateAssignments() {
-    if (roommates.length < 2) return;
-    chores.forEach((chore) => {
-      if (!chore.assigneeId) return;
-      const currentIndex = roommates.findIndex(
-        (roommate) => roommate.id === chore.assigneeId,
-      );
-      const nextRoommate = roommates[(currentIndex + 1) % roommates.length];
-      updateChore(chore.id, {
-        assigneeId: nextRoommate.id,
-        completed: false,
-        completedWeek: weekKey,
-      });
-    });
+  function handleLeave() {
+    if (window.confirm("Leave this house on this device? You'll need the invite link to come back.")) {
+      onLeave();
+    }
+  }
+
+  const topBar = (
+    <TopBar
+      label={houseName ? houseName.toUpperCase() : "HOUSEHOLD HQ"}
+      status={status}
+      darkMode={darkMode}
+      onToggleTheme={onToggleTheme}
+    />
+  );
+
+  // First visit on this device: nothing cached yet, so wait for the server.
+  if (!isLoaded) {
+    return (
+      <div className="dashboard">
+        {topBar}
+        <section className="gate" aria-live="polite">
+          <p className="eyebrow"><span>★</span> ONE MOMENT</p>
+          <h1>Loading<br /><span className="house-name">your house.</span></h1>
+          <p className="hero-description">
+            {status === "reconnecting"
+              ? "Can’t reach the server yet. If it was asleep this can take up to a minute; we’ll keep trying."
+              : "Fetching the latest chores, bills and notes…"}
+          </p>
+          <button className="rename-house-button" type="button" onClick={onLeave}>
+            USE A DIFFERENT HOUSE
+          </button>
+        </section>
+      </div>
+    );
   }
 
   return (
-    <main className={`app-shell${darkMode ? " dark-mode" : ""}`}>
+    <>
       <div className="dashboard">
-        <header className="topbar">
-          <a className="brand" href="/" aria-label="Chore Score home">
-            <span className="brand-mark" aria-hidden="true">
-              C<span>S</span>
-            </span>
-            <span className="brand-name">
-              CHORE<span>SCORE</span>
-            </span>
-          </a>
-          <div className="topbar-actions">
-            <span className="status-pill">
-              <span className="status-dot" />
-              <span className="status-pill-name">{houseName ? houseName.toUpperCase() : "HOUSEHOLD HQ"}</span>
-            </span>
-            <button
-              className="theme-toggle"
-              type="button"
-              onClick={() => setDarkMode((enabled) => !enabled)}
-              aria-label={`Switch to ${darkMode ? "light" : "dark"} mode`}
-              aria-pressed={darkMode}
-            >
-              <span aria-hidden="true">{darkMode ? "☼" : "◐"}</span>
-              <span>{darkMode ? "LIGHT" : "DARK"}</span>
-            </button>
-          </div>
-        </header>
+        {topBar}
 
         <section className="hero">
           <div className="hero-copy">
@@ -372,9 +391,13 @@ function App() {
           </button>
         </section>
 
-        {storageError && (
-          <p className="storage-alert" role="alert">{storageError} Changes may not be saved.</p>
+        {status === "reconnecting" && (
+          <p className="storage-alert" role="status">
+            Can’t reach the server, so you’re seeing the last copy saved on this device. Changes
+            won’t be saved until the connection is back.
+          </p>
         )}
+        {syncError && <p className="storage-alert" role="alert">{syncError}</p>}
 
         <section className="chores-section" aria-labelledby="chores-heading">
           <div className="section-heading">
@@ -386,7 +409,7 @@ function App() {
               <button
                 className="rotate-button"
                 type="button"
-                onClick={rotateAssignments}
+                onClick={() => rotateRoster(weekKey)}
                 disabled={roommates.length < 2 || chores.length === 0}
                 title={roommates.length < 2 ? "Add at least two housemates to rotate chores" : "Pass each chore to the next housemate"}
               >
@@ -561,6 +584,7 @@ function App() {
             onRemove={removeExpense}
           />
           <HomeChat
+            houseCode={houseCode}
             username={chatUsername}
             onUsernameChange={setChatUsername}
           />
@@ -624,14 +648,103 @@ function App() {
                   <button
                     className="remove-roommate"
                     type="button"
-                    onClick={() => handleRemoveRoommate(roommate.id)}
+                    onClick={() => removeRoommate(roommate.id)}
                     aria-label={`Remove ${roommate.name}`}
                   >REMOVE</button>
                 </div>
               ))}
             </div>
             <p className="dialog-note">Removing someone leaves their chores unassigned.</p>
+
+            <div className="invite-box">
+              <label className="field-label" htmlFor="invite-link">INVITE LINK</label>
+              <div className="roommate-input-row">
+                <input
+                  id="invite-link"
+                  readOnly
+                  value={inviteLink(houseCode)}
+                  onFocus={(event) => event.currentTarget.select()}
+                />
+                <button className="add-chore-button" type="button" onClick={copyInviteLink}>
+                  {copied ? "COPIED" : "COPY"}
+                </button>
+              </div>
+              <p className="dialog-note">
+                House code <b>{formatHouseCode(houseCode)}</b>. Send the link to your housemates:
+                anyone who has it can see and change this house.
+              </p>
+              <button className="remove-roommate leave-house" type="button" onClick={handleLeave}>
+                LEAVE THIS HOUSE ON THIS DEVICE
+              </button>
+            </div>
           </section>
+        </div>
+      )}
+    </>
+  );
+}
+
+const NOT_FOUND_NOTICE =
+  "That house wasn't found on the server. The link may be wrong, or the server lost its data.";
+
+function App() {
+  const [darkMode, setDarkMode] = useState(readSavedDarkMode);
+  // The house in the address bar wins (someone opened an invite link), then the one remembered here.
+  const [houseCode, setHouseCode] = useState(() => houseCodeFromUrl() ?? readSavedHouseCode());
+  const [notice, setNotice] = useState("");
+  const [lostCopy, setLostCopy] = useState<Household | null>(null);
+
+  // Remember the theme between visits.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(THEME_KEY, darkMode ? "dark" : "light");
+    } catch {
+      /* theme still works for this visit if storage is unavailable */
+    }
+  }, [darkMode]);
+
+  // Keep the address bar and saved house in step with the house being shown.
+  useEffect(() => {
+    if (houseCode) enterHouse(houseCode);
+    else if (window.location.pathname !== "/") window.history.replaceState(null, "", "/");
+  }, [houseCode]);
+
+  function goToGate(message: string, copy: Household | null) {
+    leaveHouse();
+    setNotice(message);
+    setLostCopy(copy);
+    setHouseCode(null);
+  }
+
+  function handleMissing() {
+    // Offer to recreate the house from this device's cached copy, if it had anything in it.
+    const cached = houseCode ? readHouseCache(houseCode)?.household ?? null : null;
+    goToGate(NOT_FOUND_NOTICE, cached && hasHouseholdContent(cached) ? cached : null);
+  }
+
+  function handleEnter(code: string) {
+    setNotice("");
+    setLostCopy(null);
+    setHouseCode(code);
+  }
+
+  const toggleTheme = () => setDarkMode((enabled) => !enabled);
+
+  return (
+    <main className={`app-shell${darkMode ? " dark-mode" : ""}`}>
+      {houseCode ? (
+        <HouseDashboard
+          key={houseCode}
+          houseCode={houseCode}
+          darkMode={darkMode}
+          onToggleTheme={toggleTheme}
+          onLeave={() => goToGate("", null)}
+          onMissing={handleMissing}
+        />
+      ) : (
+        <div className="dashboard">
+          <TopBar label="HOUSEHOLD HQ" darkMode={darkMode} onToggleTheme={toggleTheme} />
+          <HouseGate notice={notice} lostCopy={lostCopy} onEnter={handleEnter} />
         </div>
       )}
     </main>

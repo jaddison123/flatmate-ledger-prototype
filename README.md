@@ -4,6 +4,7 @@ A household ledger, chore tracker and live chat for university students sharing 
 
 ## Features
 
+- **Shared houses:** the first person creates a house and gets an invite link (`/h/<code>`). Everyone who opens it sees the same chores, bills, notes, housemates and chat, live, on any device. The invite link and a "leave this house" button are in the Housemates dialog.
 - **Household name:** give your house a name; it replaces the headline tagline and the top-bar label.
 - **Housemates:** add and remove the people in the house.
 - **Chore board:** add chores, assign them, set optional due dates, tick them off, and filter by all / to do / done. Completions reset every Monday. "Rotate the roster" passes each assigned chore to the next housemate.
@@ -16,8 +17,13 @@ A household ledger, chore tracker and live chat for university students sharing 
 
 | Data | Stored |
 | --- | --- |
-| Housemates, chores, bills, notes, house name, chat name | In each person's own browser (`localStorage`). Not shared between devices. |
-| Chat messages, reactions, read ticks | On the chat server (`server-data/chat-messages.json`, last 200 messages). Shared live with everyone connected. |
+| Housemates, chores, bills, notes, house name | On the server, per house. Shared live with everyone who has the invite link. Each browser also keeps a copy so the page shows instantly while the server wakes up. |
+| Chat messages, reactions, read ticks | On the server, per house (last 200 messages). |
+| Your chat name, which house you're in, theme | In your own browser (`localStorage`). |
+
+The server saves to **Upstash Redis** when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set, otherwise to JSON files in `server-data/` (see `storage.mjs`).
+
+Data saved in a browser before houses were shared is not lost: when that browser creates a house, it offers to upload it.
 
 ## Getting started
 
@@ -48,26 +54,35 @@ Tailwind CSS v4 is set up through the Vite plugin. Most styling is in `src/index
 src/
   main.tsx                    entry point
   App.tsx                     layout, hero and house name, chore board, housemates dialog
-  hooks/useHouseholdData.ts   typed household state saved to localStorage
+  hooks/useHouseholdData.ts   a house's shared data, synced live with the server
+  lib/house.ts                house codes, invite links, per-device settings, API helper
+  components/HouseGate.tsx    start a new house or join one
+  components/TopBar.tsx       logo, house name with live/offline dot, theme toggle
   components/BillTracker.tsx  bills, equal splits, balances
   components/Notes.tsx        notes board for non-chore reminders
   components/HomeChat.tsx     live chat interface
-server.mjs                    chat server (Node built-ins only); serves dist/ in production
-dev.mjs                       runs Vite and the chat server together
+shared/household.mjs          household types, validation and actions (used by server and browser)
+server.mjs                    API server (Node built-ins only); serves dist/ in production
+storage.mjs                   saves house data to Upstash Redis or JSON files
+dev.mjs                       runs Vite and the server together
 ```
 
-`useHouseholdData` returns the roommates, chores and expenses, the chat name and house name, add / remove methods (plus update for chores), and a `storageError` message if saved data cannot be read or written. Saved data is validated when loaded.
+`useHouseholdData(houseCode)` returns the house's roommates, chores, expenses, notes and name, methods to change them, the connection `status` (`connecting`, `live`, `reconnecting`, `missing`) and a `syncError` message if a change was rejected. Everything the server sends is validated before use.
 
-## How the chat works
+## How sharing works
 
-The browser opens a server-sent events connection to `/api/chat/events`. The server pushes new messages, reactions, read receipts and typing hints to everyone connected. The browser sends actions to these endpoints:
+Every house has a random 12-character code. All API routes live under `/api/houses`:
 
-- `POST /api/chat/messages` sends a message.
-- `POST /api/chat/react` toggles an emoji reaction.
-- `POST /api/chat/read` marks messages as read.
-- `POST /api/chat/typing` sends a typing hint.
+- `POST /api/houses` creates a house (optionally with uploaded data) and returns its code.
+- `GET /api/houses/<code>` returns `{ version, household }`, or 404 if there is no such house.
+- `GET /api/houses/<code>/events` is a server-sent events stream: a `snapshot` on connect, then a `household` event after every change.
+- `POST /api/houses/<code>/actions` applies one change, such as `{ type: "addChore", chore }`, `{ type: "rotateRoster", week }` or `{ type: "removeNote", id }`.
 
-In development, Vite forwards `/api/chat` to the chat server on `127.0.0.1:3001` (see `vite.config.ts`). In production the same Node process serves both the site and the chat.
+Changes are sent as small actions rather than a whole copy of the data, so two people editing at the same time don't overwrite each other. The list of actions and their validation is in `shared/household.mjs`, which both the server and the browser use. The browser shows a change straight away and swaps in the server's version when it arrives. If the server rejects the change, it disappears and an error is shown.
+
+The chat works the same way under `/api/houses/<code>/chat`: `events` (stream of `history`, `message`, `update`, `typing`), plus `POST` to `messages`, `react`, `read` and `typing`.
+
+In development, Vite forwards `/api` to the server on `127.0.0.1:3001` (see `vite.config.ts`). In production the same Node process serves both the site and the API.
 
 ## Trying it on other devices
 
@@ -96,19 +111,30 @@ The whole app runs as one Render web service.
    - **Instance type:** Free
 4. Create the service. Render provides a public URL and redeploys automatically on every push to the selected branch.
 
-Render sets the `PORT` variable itself, and the server then listens on all network interfaces. No other environment variables are needed.
+Render sets the `PORT` variable itself, and the server then listens on all network interfaces.
+
+### Keeping data between deploys (Upstash)
+
+Render's free disk is wiped on every deploy and restart, which would delete every house. To keep the data, use a free Upstash Redis database:
+
+1. Sign up at upstash.com and create a **Redis** database (free plan; pick the region closest to your Render service).
+2. On the database page, under **REST API**, copy `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+3. In Render, open the service's **Environment** tab and add both variables with those values. Render redeploys.
+
+The server log then says `Saving house data to Upstash Redis at …`. No npm package is needed; the server talks to Upstash over HTTPS.
 
 Notes about the free tier:
 
-- The service sleeps when idle. The first visit afterwards can take 30 to 60 seconds, so open it before a demo.
-- The disk is temporary, so chat history may reset when the service restarts or redeploys.
+- The service sleeps when idle. The first visit afterwards can take 30 to 60 seconds, so open it before a demo. The app shows the last saved copy while it waits.
+- Without Upstash, houses and chat are lost whenever the service restarts or redeploys. If that happens, the app offers to recreate the house from the copy saved in the browser (with a new invite link).
 
-Optional environment variables: `PORT`, `CHAT_PORT` (default 3001), `CHAT_HOST`, `CHAT_DATA_FILE`.
+Optional environment variables: `PORT`, `CHAT_PORT` (default 3001), `CHAT_HOST`, `DATA_DIR` (folder for the JSON files, default `server-data`), `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`.
 
 ## Known limitations
 
-- Chores, bills, notes, housemates and the house name are stored per browser, so housemates do not see each other's lists. Only the chat is shared.
-- The chat limits how fast people can post (5 messages per 10 seconds each, 60 per minute overall), but it has no authentication. Anyone with the link can read it and post under any name, so only share the link with people you trust.
+- There are no accounts. Anyone with a house's invite link can see and change everything in it and post in its chat under any name, so only share the link with your housemates. Codes are long and random, so they cannot be guessed.
+- The server limits how fast people can make changes (30 per 10 seconds each) and post (5 messages per 10 seconds each, 30 per minute per house, 120 per minute overall), and how many houses can be created (5 per 10 minutes each).
+- Changes need a connection. While offline you see the last saved copy, but edits are not queued.
 - Bills show net balances only. There is no "who pays whom" breakdown and no way to record a repayment.
-- Chat history is limited to the last 200 messages and may be lost on free hosting.
+- Chat history is limited to the last 200 messages per house.
 - There is no automated test suite.

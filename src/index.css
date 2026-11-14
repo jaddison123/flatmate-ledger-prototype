@@ -1832,6 +1832,86 @@ a {
   white-space: nowrap;
 }
 
+/* ---------- Shared houses: connection dot, start screen, invite ---------- */
+.status-dot.status-connecting,
+.status-dot.status-reconnecting {
+  background: var(--muted);
+  box-shadow: none;
+}
+.status-dot.status-reconnecting { background: var(--red); }
+
+.gate {
+  padding: 42px 0 48px;
+}
+.gate h1 {
+  margin: 0;
+  font-family: Impact, "Arial Narrow", sans-serif;
+  font-size: clamp(38px, 6vw, 64px);
+  font-weight: 400;
+  line-height: .95;
+  text-transform: uppercase;
+}
+.gate-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 26px;
+}
+.gate-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 0;
+}
+.gate-text {
+  margin: 0;
+  color: var(--muted);
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.gate > .gate-text { margin-top: 14px; }
+.gate-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--ink);
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+}
+.gate-check input {
+  margin: 2px 0 0;
+  accent-color: var(--red);
+}
+.gate-check small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.gate-button {
+  align-self: flex-start;
+  margin-top: auto;
+}
+.gate-button:disabled { cursor: wait; opacity: .6; }
+
+.invite-box {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.invite-box > .field-label { margin-bottom: 7px; }
+.invite-box .dialog-note b {
+  color: var(--ink);
+  font-family: "Courier New", monospace;
+  letter-spacing: .05em;
+}
+.leave-house {
+  margin-top: 14px;
+  padding-left: 0;
+}
+
 /* Overdue chores: red edge and label */
 .chore-overdue {
   box-shadow: inset 3px 0 0 var(--red);

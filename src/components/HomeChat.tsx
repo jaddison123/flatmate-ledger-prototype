@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 interface HomeChatProps {
+  /** Each house has its own chat under /api/houses/<code>/chat. */
+  houseCode: string;
   username: string;
   onUsernameChange: (username: string) => void;
 }
@@ -71,7 +73,8 @@ function postJson(path: string, body: unknown): Promise<Response> {
   });
 }
 
-function HomeChat({ username, onUsernameChange }: HomeChatProps) {
+function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
+  const api = `/api/houses/${houseCode}/chat`;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionState, setConnectionState] = useState<
     "connecting" | "connected" | "reconnecting"
@@ -89,7 +92,7 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
   const me = username.trim();
 
   useEffect(() => {
-    const eventSource = new EventSource("/api/chat/events");
+    const eventSource = new EventSource(`${api}/events`);
     eventSource.onopen = () => {
       setConnectionState("connected");
       setConnectionError("");
@@ -154,7 +157,7 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
     });
 
     return () => eventSource.close();
-  }, []);
+  }, [api]);
 
   // Expire typing indicators.
   useEffect(() => {
@@ -179,8 +182,8 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
   const hasUnread = me !== "" && messages.some((m) => !(m.readBy ?? []).includes(me));
   useEffect(() => {
     if (!hasUnread) return;
-    postJson("/api/chat/read", { username: me }).catch(() => undefined);
-  }, [hasUnread, me, messages.length]);
+    postJson(`${api}/read`, { username: me }).catch(() => undefined);
+  }, [api, hasUnread, me, messages.length]);
 
   async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -196,7 +199,7 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
     setFormError("");
     setShowEmojiPicker(false);
     try {
-      const response = await postJson("/api/chat/messages", { username: me, text: message });
+      const response = await postJson(`${api}/messages`, { username: me, text: message });
       if (!response.ok) {
         const result: unknown = await response.json().catch(() => null);
         const serverMessage =
@@ -223,7 +226,7 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
     const now = Date.now();
     if (me && value && now - lastTypingPost.current > 2500) {
       lastTypingPost.current = now;
-      postJson("/api/chat/typing", { username: me }).catch(() => undefined);
+      postJson(`${api}/typing`, { username: me }).catch(() => undefined);
     }
   }
 
@@ -233,7 +236,7 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
       setFormError("Choose a username before reacting.");
       return;
     }
-    postJson("/api/chat/react", { id, username: me, emoji }).catch(() => {
+    postJson(`${api}/react`, { id, username: me, emoji }).catch(() => {
       setFormError("Could not add that reaction.");
     });
   }
@@ -410,7 +413,7 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
       </div>
       {formError && <p className="form-error" role="alert">{formError}</p>}
       <p className="chat-local-note">
-        Tap a message to react. Messages are shared live with everyone who has the link.
+        Tap a message to react. Messages are shared live with everyone in this house.
       </p>
     </section>
   );
