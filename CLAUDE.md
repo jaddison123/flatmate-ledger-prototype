@@ -48,6 +48,8 @@ dev.mjs                    runs vite + chat server together
 - Events: `history`, `message`, `update` (reaction/read-receipt change for one message), `typing`.
 - The server keeps the last 200 messages in `server-data/chat-messages.json` (git-ignored). Messages have optional `reactions` (`emoji -> usernames`) and `readBy`.
 - In dev, Vite proxies `/api/chat` to `127.0.0.1:3001` (`vite.config.ts`). In production `server.mjs` serves `dist/` itself, so one process handles site and chat.
+- Rate limits (in `server.mjs`): 5 messages per 10 s per client and 60 per minute overall; 40 reactions/read/typing requests per 10 s per client. Over the limit returns HTTP 429 with a message the UI shows. The client address comes from `X-Forwarded-For`, which can be forged, hence the overall cap.
+- The theme choice is stored under the localStorage key `chore-score:theme` (separate from the household data).
 - There is no authentication: anyone with the link can post under any name. Known limitation, fine for the prototype.
 
 ## Deployment

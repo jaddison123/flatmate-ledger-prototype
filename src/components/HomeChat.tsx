@@ -243,7 +243,8 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
     inputRef.current?.focus();
   }
 
-  const visibleMessages = messages.slice(-60);
+  // The server keeps (and sends) the last 200 messages; show them all.
+  const visibleMessages = messages;
 
   return (
     <section className="feature-panel chat-panel" aria-labelledby="chat-heading">
@@ -409,7 +410,7 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
       </div>
       {formError && <p className="form-error" role="alert">{formError}</p>}
       <p className="chat-local-note">
-        Tap a message to react. Messages are shared live with everyone on this home network.
+        Tap a message to react. Messages are shared live with everyone who has the link.
       </p>
     </section>
   );

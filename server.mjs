@@ -119,8 +119,57 @@ function cleanUsername(value) {
   return name.length >= 1 && name.length <= 30 ? name : "";
 }
 
+// ---- Rate limiting (in memory, sliding window) so a public chat cannot be spammed.
+const requestHits = new Map(); // key -> timestamps (ms) of recent requests
+const GLOBAL_KEY = "all-clients";
+
+// Returns true if the request is allowed, and records it.
+function allow(key, limit, windowMs) {
+  const now = Date.now();
+  const recent = (requestHits.get(key) ?? []).filter((time) => now - time < windowMs);
+  if (recent.length >= limit) {
+    requestHits.set(key, recent);
+    return false;
+  }
+  recent.push(now);
+  requestHits.set(key, recent);
+  return true;
+}
+
+// Behind a host's proxy (Render) the real address is in X-Forwarded-For. That header can be
+// forged, so a global cap below backs up the per-client limit.
+function clientAddress(request) {
+  const forwarded = request.headers["x-forwarded-for"];
+  const first = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : "";
+  return first || request.socket.remoteAddress || "unknown";
+}
+
+function tooManyRequests(response, message) {
+  response.writeHead(429, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Retry-After": "10",
+  });
+  response.end(JSON.stringify({ error: message }));
+}
+
 async function handleRequest(request, response) {
   const requestUrl = new URL(request.url ?? "/", "http://localhost");
+
+  if (request.method === "POST" && requestUrl.pathname.startsWith("/api/chat/")) {
+    const client = clientAddress(request);
+    if (requestUrl.pathname === "/api/chat/messages") {
+      // 5 messages per 10 seconds per person, 60 per minute across the whole chat.
+      if (!allow(`msg:${client}`, 5, 10_000) || !allow(`${GLOBAL_KEY}:msg`, 60, 60_000)) {
+        tooManyRequests(response, "You're sending messages too fast. Wait a few seconds and try again.");
+        return;
+      }
+    } else if (!allow(`act:${client}`, 40, 10_000)) {
+      // Reactions, read receipts and typing hints get a looser limit.
+      tooManyRequests(response, "Too many requests. Slow down a little.");
+      return;
+    }
+  }
 
   if (request.method === "GET" && requestUrl.pathname === "/api/chat/events") {
     response.writeHead(200, {
@@ -305,6 +354,11 @@ async function start() {
       } else {
         client.write(": keep-alive\n\n");
       }
+    }
+    // Forget rate-limit entries with no activity in the last minute.
+    const cutoff = Date.now() - 60_000;
+    for (const [key, times] of requestHits) {
+      if (times.length === 0 || times[times.length - 1] < cutoff) requestHits.delete(key);
     }
   }, 20_000);
   heartbeat.unref();

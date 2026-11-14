@@ -108,7 +108,7 @@ Optional environment variables: `PORT`, `CHAT_PORT` (default 3001), `CHAT_HOST`,
 ## Known limitations
 
 - Chores, bills, notes, housemates and the house name are stored per browser, so housemates do not see each other's lists. Only the chat is shared.
-- The chat has no authentication. Anyone with the link can read it and post under any name, so only share the link with people you trust.
+- The chat limits how fast people can post (5 messages per 10 seconds each, 60 per minute overall), but it has no authentication. Anyone with the link can read it and post under any name, so only share the link with people you trust.
 - Bills show net balances only. There is no "who pays whom" breakdown and no way to record a repayment.
 - Chat history is limited to the last 200 messages and may be lost on free hosting.
 - There is no automated test suite.

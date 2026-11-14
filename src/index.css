@@ -1831,3 +1831,13 @@ a {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Overdue chores: red edge and label */
+.chore-overdue {
+  box-shadow: inset 3px 0 0 var(--red);
+  padding-left: 10px;
+}
+.chore-overdue .chore-details > span {
+  color: var(--red);
+  font-weight: 700;
+}

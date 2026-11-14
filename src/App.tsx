@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useHouseholdData } from "./hooks/useHouseholdData";
 import BillTracker from "./components/BillTracker";
 import HomeChat from "./components/HomeChat";
@@ -35,6 +35,20 @@ function formatDueDate(value: string | null): string {
   }).format(new Date(`${value}T12:00:00`));
 }
 
+const THEME_KEY = "chore-score:theme";
+
+// Dark is the default; only an explicit "light" choice is remembered otherwise.
+function readSavedDarkMode(): boolean {
+  try {
+    return window.localStorage.getItem(THEME_KEY) !== "light";
+  } catch {
+    return true; // storage blocked (e.g. private window)
+  }
+}
+
+const FOCUSABLE =
+  'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+
 function App() {
   const {
     roommates,
@@ -56,7 +70,9 @@ function App() {
     removeExpense,
     setChatUsername,
   } = useHouseholdData();
-  const [darkMode, setDarkMode] = useState(true); // dark mode by default
+  const [darkMode, setDarkMode] = useState(readSavedDarkMode);
+  const dialogRef = useRef<HTMLElement>(null);
+  const dialogOpenerRef = useRef<HTMLElement | null>(null);
   const [filter, setFilter] = useState<ChoreFilter>("all");
   const [isAddingChore, setIsAddingChore] = useState(false);
   const [isManagingHousemates, setIsManagingHousemates] = useState(false);
@@ -93,7 +109,53 @@ function App() {
     return () => window.clearTimeout(timeoutId);
   }, [today]);
 
+  // Remember the theme between visits.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(THEME_KEY, darkMode ? "dark" : "light");
+    } catch {
+      /* theme still works for this visit if storage is unavailable */
+    }
+  }, [darkMode]);
+
+  // Housemates dialog: Escape closes it, Tab stays inside it, and focus returns to
+  // the button that opened it.
+  useEffect(() => {
+    if (!isManagingHousemates) return;
+    const dialog = dialogRef.current;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsManagingHousemates(false);
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (!dialog.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      dialogOpenerRef.current?.focus();
+    };
+  }, [isManagingHousemates]);
+
   const weekStart = getWeekStart(today);
+  const todayKey = toDateInputValue(today);
   const weekKey = toDateInputValue(weekStart);
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
@@ -299,7 +361,8 @@ function App() {
           <button
             className="housemates-button"
             type="button"
-            onClick={() => {
+            onClick={(event) => {
+              dialogOpenerRef.current = event.currentTarget;
               setFormError("");
               setIsManagingHousemates(true);
             }}
@@ -414,8 +477,13 @@ function App() {
           <div className="chore-list">
             {visibleChores.map((chore, index) => {
               const roommate = roommates.find((person) => person.id === chore.assigneeId);
+              // Overdue = not done and the due date is before today (date strings compare correctly).
+              const isOverdue = !chore.isComplete && chore.dueDate !== null && chore.dueDate < todayKey;
               return (
-                <article className={`chore-row${chore.isComplete ? " chore-complete" : ""}`} key={chore.id}>
+                <article
+                  className={`chore-row${chore.isComplete ? " chore-complete" : ""}${isOverdue ? " chore-overdue" : ""}`}
+                  key={chore.id}
+                >
                   <span className="chore-number">{String(index + 1).padStart(2, "0")}</span>
                   <button
                     className="chore-check"
@@ -432,7 +500,15 @@ function App() {
                   </button>
                   <div className="chore-details">
                     <h3>{chore.title}</h3>
-                    <span>{chore.isComplete ? "DONE FOR THIS WEEK" : chore.dueDate ? `DUE ${formatDueDate(chore.dueDate).toUpperCase()}` : "THIS WEEK"}</span>
+                    <span>
+                      {chore.isComplete
+                        ? "DONE FOR THIS WEEK"
+                        : isOverdue
+                          ? `OVERDUE · WAS DUE ${formatDueDate(chore.dueDate).toUpperCase()}`
+                          : chore.dueDate
+                            ? `DUE ${formatDueDate(chore.dueDate).toUpperCase()}`
+                            : "THIS WEEK"}
+                    </span>
                   </div>
                   <div className="assignee">
                     <span className={`avatar${roommate ? "" : " avatar-unassigned"}`} aria-hidden="true">
@@ -504,6 +580,7 @@ function App() {
           }}
         >
           <section
+            ref={dialogRef}
             className="housemates-dialog"
             role="dialog"
             aria-modal="true"
