@@ -387,7 +387,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, onLeave, onMissing
             }}
           >
             <span className="housemates-icon" aria-hidden="true">＋</span>
-            <span>HOUSEMATES<small>Manage your crew</small></span>
+            <span>EDIT HOUSE<small>Housemates, invite, leave</small></span>
           </button>
         </section>
 
@@ -613,7 +613,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, onLeave, onMissing
             <div className="form-heading">
               <div>
                 <span className="form-kicker">SAME ROOF, SAME TEAM</span>
-                <h2 id="housemates-title">Your housemates.</h2>
+                <h2 id="housemates-title">Edit your house.</h2>
               </div>
               <button
                 className="icon-button"
