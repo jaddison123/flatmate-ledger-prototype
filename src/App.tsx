@@ -50,7 +50,7 @@ function App() {
     removeExpense,
     setChatUsername,
   } = useHouseholdData();
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true); // dark mode by default
   const [filter, setFilter] = useState<ChoreFilter>("all");
   const [isAddingChore, setIsAddingChore] = useState(false);
   const [isManagingHousemates, setIsManagingHousemates] = useState(false);
