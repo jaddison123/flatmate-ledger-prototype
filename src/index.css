@@ -1114,6 +1114,10 @@ a {
   margin-bottom: 15px;
 }
 
+.chat-name-error {
+  margin: -7px 0 13px;
+}
+
 .chat-connection {
   display: inline-flex;
   flex: 0 0 auto;

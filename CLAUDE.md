@@ -62,7 +62,9 @@ dev.mjs                    runs vite + server together
 - The server keeps the last 200 messages per house. Messages have optional `reactions` (`emoji -> usernames`) and `readBy`.
 - In dev, Vite proxies `/api` to `127.0.0.1:3001` (`vite.config.ts`). In production `server.mjs` serves `dist/` itself (with an SPA fallback so `/h/<code>` loads the app), so one process handles everything.
 - Rate limits (`rateLimitMessage` in `server.mjs`): house creation 5 per 10 min per client and 30 per hour overall; opening houses 60 per minute per client; actions 30 per 10 s per client; chat messages 5 per 10 s per client, 30 per minute per house, 120 per minute overall; 40 reactions/read/typing requests per 10 s per client. Over the limit returns HTTP 429 with a message the UI shows. The client address comes from `X-Forwarded-For`, which can be forged, hence the per-house and overall caps.
-- There is no authentication: anyone with the invite link can post under any name. Known limitation, fine for the prototype.
+- Chat names belong to one device. Each device has a random secret in localStorage (`chore-score:member-token`), sent as `token` with every chat POST; the server keeps only its SHA-256 hash in the house's `members` (saved with the chat as `{ messages, members }`). `POST .../chat/name` claims a name (HomeChat calls it 700 ms after typing stops); sending or reacting with a name held by another device returns 409, and read/typing from a non-holder are ignored. Names match case- and space-insensitively. A device holds one name at a time, so renaming frees the old one.
+- Messages carry `senderId` (first 16 hex chars of the hash); HomeChat decides "my message" by `senderId`, not by name, so renaming doesn't flip whose messages look like yours.
+- There are no accounts: anyone with the invite link can join under a free name. Clearing site data, or using a second device, means picking a different name.
 
 ## Deployment
 

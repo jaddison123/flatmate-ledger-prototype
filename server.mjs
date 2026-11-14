@@ -7,7 +7,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { dirname, extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomInt, randomUUID } from "node:crypto";
+import { createHash, randomInt, randomUUID } from "node:crypto";
 import { createStore } from "./storage.mjs";
 import { ActionError, applyAction, emptyHousehold, normalizeHousehold } from "./shared/household.mjs";
 
@@ -65,12 +65,12 @@ const houseKey = (code) => `house:${code}`;
 const chatKey = (code) => `chat:${code}`;
 
 // code -> Promise<House | null>. A House is
-// { code, version, createdAt, household, messages, streams: Set, chatStreams: Set }.
+// { code, version, createdAt, household, messages, members, streams: Set, chatStreams: Set }.
 // `version` goes up by one with every change so browsers can ignore out-of-date updates.
 const houses = new Map();
 
 async function loadHouse(code) {
-  const [saved, savedMessages] = await Promise.all([
+  const [saved, savedChat] = await Promise.all([
     store.get(houseKey(code)),
     store.get(chatKey(code)),
   ]);
@@ -79,6 +79,8 @@ async function loadHouse(code) {
   if (!household || !Number.isInteger(saved.version)) {
     throw new Error(`Saved data for house ${code} has an invalid format.`);
   }
+  // The chat used to be saved as a bare array of messages; now it is { messages, members }.
+  const savedMessages = Array.isArray(savedChat) ? savedChat : isRecord(savedChat) ? savedChat.messages : [];
   const messages = Array.isArray(savedMessages)
     ? savedMessages.filter(isChatMessage).slice(-maxMessages).map(withExtras)
     : [];
@@ -88,9 +90,71 @@ async function loadHouse(code) {
     createdAt: typeof saved.createdAt === "string" ? saved.createdAt : new Date().toISOString(),
     household,
     messages,
+    members: loadMembers(isRecord(savedChat) ? savedChat.members : undefined),
     streams: new Set(),
     chatStreams: new Set(),
   };
+}
+
+// ---- Chat names ------------------------------------------------------------------------
+//
+// To stop people posting as someone else, each chat name belongs to one device. A device has a
+// random secret `token` (kept in its localStorage); the server stores only its SHA-256 hash.
+// The first device to use a name claims it; other devices get a 409 until it is released
+// (a device holds one name at a time, so renaming releases the old one).
+// Messages also carry `senderId`, a short public id derived from the hash, so a browser can
+// tell its own messages apart even from someone who later takes over an old name.
+
+const maxMembers = 60;
+
+function loadMembers(value) {
+  const members = {};
+  if (!isRecord(value)) return members;
+  for (const [key, member] of Object.entries(value)) {
+    if (isRecord(member) && typeof member.name === "string" && typeof member.hash === "string") {
+      members[key] = { name: member.name, hash: member.hash };
+    }
+  }
+  return members;
+}
+
+/** Names are compared ignoring case and repeated spaces, so "Jude 1" and "jude  1" are the same. */
+function nameKey(name) {
+  return name.toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Hashes the device token from a request body; throws 400 if it is missing or malformed. */
+function memberHash(body) {
+  const token = isRecord(body) && typeof body.token === "string" ? body.token : "";
+  if (token.length < 20 || token.length > 100) throw httpError(400, "This device's chat key is missing. Reload the page.");
+  return createHash("sha256").update(token).digest("hex");
+}
+
+const senderIdFor = (hash) => hash.slice(0, 16);
+
+function holdsName(house, name, hash) {
+  return house.members[nameKey(name)]?.hash === hash;
+}
+
+/**
+ * Gives `name` to the device with `hash` (releasing any other name it held). Throws 409 if
+ * another device holds it. Returns true if anything changed (so the caller saves).
+ */
+function claimName(house, name, hash) {
+  const key = nameKey(name);
+  const holder = house.members[key];
+  if (holder && holder.hash !== hash) {
+    throw httpError(409, `“${holder.name}” is already used by someone else in this house. Pick another name.`);
+  }
+  if (holder && holder.name === name) return false;
+  if (!holder && Object.keys(house.members).length >= maxMembers) {
+    throw httpError(409, "This house has too many chat names. Ask someone to free one up.");
+  }
+  for (const [otherKey, member] of Object.entries(house.members)) {
+    if (member.hash === hash && otherKey !== key) delete house.members[otherKey];
+  }
+  house.members[key] = { name, hash };
+  return true;
 }
 
 /** Loads a house once and keeps it in memory; resolves to null if it does not exist. */
@@ -118,7 +182,7 @@ function saveHouse(house) {
 }
 
 function saveChat(house) {
-  return store.save(chatKey(house.code), house.messages);
+  return store.save(chatKey(house.code), { messages: house.messages, members: house.members });
 }
 
 function householdSnapshot(house, actionId) {
@@ -259,6 +323,7 @@ async function createHouse(request, response) {
     createdAt: new Date().toISOString(),
     household,
     messages: [],
+    members: {},
     streams: new Set(),
     chatStreams: new Set(),
   };
@@ -301,6 +366,17 @@ async function handleChat(house, route, request, response) {
   }
   if (request.method !== "POST") return false;
 
+  // Claim a chat name for this device: { name, token } -> { name, senderId }, or 409 if taken.
+  if (route === "/chat/name") {
+    const body = await readRequestJson(request);
+    const name = cleanUsername(isRecord(body) ? body.name : "");
+    if (!name) throw httpError(400, "Names must be between 1 and 30 characters.");
+    const hash = memberHash(body);
+    if (claimName(house, name, hash)) await saveChat(house);
+    sendJson(response, 200, { name, senderId: senderIdFor(hash) });
+    return true;
+  }
+
   if (route === "/chat/messages") {
     const body = await readRequestJson(request);
     const username = cleanUsername(isRecord(body) ? body.username : "");
@@ -309,9 +385,12 @@ async function handleChat(house, route, request, response) {
     if (text.length === 0 || text.length > 500) {
       throw httpError(400, "Message must be between 1 and 500 characters.");
     }
+    const hash = memberHash(body);
+    claimName(house, username, hash); // 409 if someone else's name; saved with the message below
     const message = withExtras({
       id: randomUUID(),
       username,
+      senderId: senderIdFor(hash),
       text,
       createdAt: new Date().toISOString(),
       readBy: [username],
@@ -334,6 +413,7 @@ async function handleChat(house, route, request, response) {
     }
     const target = house.messages.find((message) => message.id === id);
     if (!target) throw httpError(404, "Message not found.");
+    claimName(house, username, memberHash(body)); // saved with the reaction below
     const reactions = { ...target.reactions };
     const users = reactions[emoji] ?? [];
     const next = users.includes(username)
@@ -354,6 +434,11 @@ async function handleChat(house, route, request, response) {
     const body = await readRequestJson(request);
     const username = cleanUsername(isRecord(body) ? body.username : "");
     if (!username) throw httpError(400, "A username is required.");
+    // Only the device holding the name can mark messages read as that name; others are ignored.
+    if (!holdsName(house, username, memberHash(body))) {
+      sendJson(response, 200, { updated: 0 });
+      return true;
+    }
     const changed = [];
     house.messages = house.messages.map((message) => {
       if (message.readBy.includes(username)) return message;
@@ -373,7 +458,9 @@ async function handleChat(house, route, request, response) {
   if (route === "/chat/typing") {
     const body = await readRequestJson(request);
     const username = cleanUsername(isRecord(body) ? body.username : "");
-    if (username) broadcastEvent(house.chatStreams, "typing", { username });
+    if (username && holdsName(house, username, memberHash(body))) {
+      broadcastEvent(house.chatStreams, "typing", { username });
+    }
     sendJson(response, 200, { ok: true });
     return true;
   }

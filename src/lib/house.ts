@@ -104,6 +104,20 @@ export function saveChatName(name: string): void {
   writeStorage(CHAT_NAME_KEY, name);
 }
 
+/**
+ * This device's secret chat key. The server ties your chat name to it, so nobody else can post
+ * under your name. Created once; clearing site data means picking a new name.
+ */
+export function readMemberToken(): string {
+  const saved = readStorage("chore-score:member-token");
+  if (saved && saved.length >= 20) return saved;
+  const bytes = new Uint8Array(24);
+  globalThis.crypto.getRandomValues(bytes);
+  const token = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  writeStorage("chore-score:member-token", token);
+  return token;
+}
+
 /** Last copy of a house seen on this device, shown instantly while the server wakes up. */
 export function readHouseCache(code: string): { version: number; household: Household } | null {
   try {

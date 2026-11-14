@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { apiRequest, readMemberToken } from "../lib/house";
 
 interface HomeChatProps {
   /** Each house has its own chat under /api/houses/<code>/chat. */
@@ -10,6 +11,8 @@ interface HomeChatProps {
 interface ChatMessage {
   id: string;
   username: string;
+  /** Public id of the sending device (older messages may not have one). */
+  senderId?: string;
   text: string;
   createdAt: string;
   /** emoji -> usernames who reacted with it */
@@ -64,14 +67,20 @@ function isChatMessage(value: unknown): value is ChatMessage {
   );
 }
 
+/** Every chat request carries this device's key, which proves it owns the name it uses. */
+const memberToken = readMemberToken();
+
 /** Small POST helper; chat extras (react/read/typing) fail quietly. */
-function postJson(path: string, body: unknown): Promise<Response> {
+function postJson(path: string, body: Record<string, unknown>): Promise<Response> {
   return fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, token: memberToken }),
   });
 }
+
+/** How long the name must stay unchanged before it is claimed, so typing doesn't claim "J", "Ju"... */
+const NAME_CLAIM_DELAY_MS = 700;
 
 function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
   const api = `/api/houses/${houseCode}/chat`;
@@ -90,6 +99,39 @@ function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const lastTypingPost = useRef(0);
   const me = username.trim();
+  // The name the server has confirmed belongs to this device, and this device's public id.
+  const [claimedName, setClaimedName] = useState("");
+  const [senderId, setSenderId] = useState("");
+  const [nameError, setNameError] = useState("");
+  const nameIsMine = me !== "" && claimedName === me;
+
+  // Claim the chat name once the user stops typing it.
+  useEffect(() => {
+    setNameError("");
+    if (!me) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      apiRequest<{ name: string; senderId: string }>(`${api}/name`, { name: me, token: memberToken })
+        .then((result) => {
+          if (cancelled) return;
+          setClaimedName(result.name);
+          setSenderId(result.senderId);
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) setNameError(error instanceof Error ? error.message : "Could not use that name.");
+        });
+    }, NAME_CLAIM_DELAY_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [api, me]);
+
+  /** Messages from this device. Older messages without a senderId fall back to the name. */
+  function isOwn(message: ChatMessage): boolean {
+    if (message.senderId) return senderId !== "" && message.senderId === senderId;
+    return me !== "" && message.username === me;
+  }
 
   useEffect(() => {
     const eventSource = new EventSource(`${api}/events`);
@@ -179,7 +221,7 @@ function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
   }, [messages.length, typingNames.length]);
 
   // Send a read receipt when there are messages from others we haven't seen.
-  const hasUnread = me !== "" && messages.some((m) => !(m.readBy ?? []).includes(me));
+  const hasUnread = nameIsMine && messages.some((m) => !(m.readBy ?? []).includes(me));
   useEffect(() => {
     if (!hasUnread) return;
     postJson(`${api}/read`, { username: me }).catch(() => undefined);
@@ -191,6 +233,10 @@ function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
 
     if (!me) {
       setFormError("Choose a username before sending a message.");
+      return;
+    }
+    if (nameError) {
+      setFormError(nameError);
       return;
     }
     if (!message) return;
@@ -208,6 +254,12 @@ function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
             : `The chat server returned HTTP ${response.status}.`;
         throw new Error(serverMessage);
       }
+      // Sending also claims the name, in case it was sent before the claim timer fired.
+      const sent: unknown = await response.json().catch(() => null);
+      if (isRecord(sent) && isChatMessage(sent.message) && sent.message.senderId) {
+        setClaimedName(me);
+        setSenderId(sent.message.senderId);
+      }
       setText("");
       inputRef.current?.focus();
     } catch (error) {
@@ -224,7 +276,7 @@ function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
   function handleTextChange(value: string) {
     setText(value);
     const now = Date.now();
-    if (me && value && now - lastTypingPost.current > 2500) {
+    if (nameIsMine && value && now - lastTypingPost.current > 2500) {
       lastTypingPost.current = now;
       postJson(`${api}/typing`, { username: me }).catch(() => undefined);
     }
@@ -236,9 +288,13 @@ function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
       setFormError("Choose a username before reacting.");
       return;
     }
-    postJson(`${api}/react`, { id, username: me, emoji }).catch(() => {
-      setFormError("Could not add that reaction.");
-    });
+    postJson(`${api}/react`, { id, username: me, emoji })
+      .then(async (response) => {
+        if (response.ok) return;
+        const result: unknown = await response.json().catch(() => null);
+        setFormError(isRecord(result) && typeof result.error === "string" ? result.error : "Could not add that reaction.");
+      })
+      .catch(() => setFormError("Could not add that reaction."));
   }
 
   function insertEmoji(emoji: string) {
@@ -273,8 +329,10 @@ function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
           placeholder="e.g. Sam"
           maxLength={30}
           autoComplete="nickname"
+          aria-invalid={nameError !== ""}
         />
       </label>
+      {nameError && <p className="form-error chat-name-error" role="alert">{nameError}</p>}
 
       {connectionError && <p className="chat-server-error" role="alert">{connectionError}</p>}
 
@@ -289,7 +347,7 @@ function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
             <li className="chat-empty">No messages yet. Say hi to your housemates 👋</li>
           ) : (
             visibleMessages.map((message, index) => {
-              const own = me !== "" && message.username === me;
+              const own = isOwn(message);
               const previous = visibleMessages[index - 1];
               const newDay = !previous || formatDay(previous.createdAt) !== formatDay(message.createdAt);
               const startsGroup = newDay || previous.username !== message.username;
