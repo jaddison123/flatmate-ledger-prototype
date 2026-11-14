@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
@@ -50,7 +50,7 @@ async function loadMessages() {
     throw new Error(`Saved chat messages at ${storageFile} have an invalid format.`);
   }
 
-  return savedMessages.slice(-maxMessages);
+  return savedMessages.slice(-maxMessages).map(withExtras);
 }
 
 function sendJson(response, status, value) {
@@ -95,6 +95,38 @@ async function readRequestJson(request) {
     error.status = 400;
     throw error;
   }
+}
+
+// Messages carry optional `reactions` ({ emoji: [usernames] }) and `readBy` ([usernames]).
+function withExtras(message) {
+  return { reactions: {}, readBy: [], ...message };
+}
+
+function broadcastEvent(eventName, value) {
+  for (const client of clients) {
+    if (client.destroyed) clients.delete(client);
+    else sendEvent(client, eventName, value);
+  }
+}
+
+// Persist a changed list of messages (used for reactions and read receipts).
+function persistMessages(nextMessages) {
+  const operation = writeQueue.then(async () => {
+    await mkdir(dirname(storageFile), { recursive: true });
+    const temporaryFile = `${storageFile}.tmp`;
+    await writeFile(temporaryFile, JSON.stringify(nextMessages, null, 2), "utf8");
+    await rename(temporaryFile, storageFile);
+    messages = nextMessages;
+  });
+  writeQueue = operation.catch((error) => {
+    console.error("Could not save chat update:", error);
+  });
+  return operation;
+}
+
+function cleanUsername(value) {
+  const name = typeof value === "string" ? value.trim() : "";
+  return name.length >= 1 && name.length <= 30 ? name : "";
 }
 
 function saveMessage(message) {
@@ -148,12 +180,13 @@ async function handleRequest(request, response) {
       return;
     }
 
-    const message = {
+    const message = withExtras({
       id: randomUUID(),
       username,
       text,
       createdAt: new Date().toISOString(),
-    };
+      readBy: [username],
+    });
 
     await saveMessage(message);
     broadcastMessage(message);
@@ -161,7 +194,116 @@ async function handleRequest(request, response) {
     return;
   }
 
+  // Toggle an emoji reaction: POST /api/chat/react { id, username, emoji }
+  if (request.method === "POST" && requestUrl.pathname === "/api/chat/react") {
+    const body = await readRequestJson(request);
+    const username = cleanUsername(isRecord(body) ? body.username : "");
+    const emoji = isRecord(body) && typeof body.emoji === "string" ? body.emoji : "";
+    const id = isRecord(body) && typeof body.id === "string" ? body.id : "";
+    if (!username || !emoji || emoji.length > 16) {
+      sendJson(response, 400, { error: "A username and a short emoji are required." });
+      return;
+    }
+    const target = messages.find((message) => message.id === id);
+    if (!target) {
+      sendJson(response, 404, { error: "Message not found." });
+      return;
+    }
+    const reactions = { ...target.reactions };
+    const users = reactions[emoji] ?? [];
+    const next = users.includes(username)
+      ? users.filter((user) => user !== username)
+      : [...users, username];
+    if (next.length > 0) reactions[emoji] = next;
+    else delete reactions[emoji];
+    const updated = { ...target, reactions };
+    await persistMessages(messages.map((message) => (message.id === id ? updated : message)));
+    broadcastEvent("update", updated);
+    sendJson(response, 200, { message: updated });
+    return;
+  }
+
+  // Mark messages as read: POST /api/chat/read { username }
+  if (request.method === "POST" && requestUrl.pathname === "/api/chat/read") {
+    const body = await readRequestJson(request);
+    const username = cleanUsername(isRecord(body) ? body.username : "");
+    if (!username) {
+      sendJson(response, 400, { error: "A username is required." });
+      return;
+    }
+    const changed = [];
+    const nextMessages = messages.map((message) => {
+      if (message.readBy.includes(username)) return message;
+      const updated = { ...message, readBy: [...message.readBy, username] };
+      changed.push(updated);
+      return updated;
+    });
+    if (changed.length > 0) {
+      await persistMessages(nextMessages);
+      changed.forEach((message) => broadcastEvent("update", message));
+    }
+    sendJson(response, 200, { updated: changed.length });
+    return;
+  }
+
+  // Typing indicator: POST /api/chat/typing { username } (not persisted)
+  if (request.method === "POST" && requestUrl.pathname === "/api/chat/typing") {
+    const body = await readRequestJson(request);
+    const username = cleanUsername(isRecord(body) ? body.username : "");
+    if (username) broadcastEvent("typing", { username });
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  if (request.method === "GET" && !requestUrl.pathname.startsWith("/api/")) {
+    if (await serveStatic(requestUrl.pathname, response)) return;
+  }
+
   sendJson(response, 404, { error: "Not found." });
+}
+
+// ---- Static hosting: serves the built React app (dist/) so one service runs everything.
+const distDirectory = resolve(projectDirectory, "dist");
+const contentTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".json": "application/json; charset=utf-8",
+  ".woff2": "font/woff2",
+};
+
+async function serveStatic(pathname, response) {
+  let relativePath;
+  try {
+    relativePath = decodeURIComponent(pathname);
+  } catch {
+    return false;
+  }
+  let filePath = resolve(distDirectory, "." + relativePath);
+  // Block path traversal outside dist/.
+  if (filePath !== distDirectory && !filePath.startsWith(distDirectory + sep)) return false;
+
+  let body;
+  try {
+    body = await readFile(filePath);
+  } catch {
+    // Single-page app fallback: unknown paths without an extension get index.html.
+    if (extname(relativePath)) return false;
+    try {
+      filePath = resolve(distDirectory, "index.html");
+      body = await readFile(filePath);
+    } catch {
+      return false; // dist/ has not been built
+    }
+  }
+  response.writeHead(200, {
+    "Content-Type": contentTypes[extname(filePath)] ?? "application/octet-stream",
+  });
+  response.end(body);
+  return true;
 }
 
 async function start() {
@@ -192,8 +334,9 @@ async function start() {
   }, 20_000);
   heartbeat.unref();
 
-  const port = Number(process.env.CHAT_PORT ?? 3001);
-  const host = process.env.CHAT_HOST ?? "127.0.0.1";
+  // Hosting platforms (Render etc.) set PORT and need the server reachable from outside.
+  const port = Number(process.env.PORT ?? process.env.CHAT_PORT ?? 3001);
+  const host = process.env.CHAT_HOST ?? (process.env.PORT ? "0.0.0.0" : "127.0.0.1");
   server.listen(port, host, () => {
     console.log(`House chat server listening on http://${host}:${port}`);
     console.log(`Saved chat messages: ${storageFile}`);

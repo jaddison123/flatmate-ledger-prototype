@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 :root {
   font-family: "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
@@ -1650,3 +1650,172 @@ a {
     transition-duration: .01ms !important;
   }
 }
+
+/* ---------- WhatsApp-style chat ---------- */
+.wa-chat {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #efe7dc;
+}
+
+.wa-messages {
+  height: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 12px 10px;
+  overflow-y: auto;
+  list-style: none;
+  background: #efe7dc;
+  font-family: Arial, sans-serif;
+}
+
+.wa-chat .chat-empty { color: #6b6258; }
+
+.wa-day { display: flex; justify-content: center; margin: 8px 0; }
+.wa-day span {
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 75%);
+  color: #5b5348;
+  font-size: 10px;
+}
+
+.wa-row { display: flex; align-items: flex-end; gap: 6px; }
+.wa-row.wa-first { margin-top: 6px; }
+.wa-own { justify-content: flex-end; }
+
+.wa-avatar {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wa-bubble-col { display: flex; flex-direction: column; max-width: 78%; }
+.wa-own .wa-bubble-col { align-items: flex-end; }
+
+.wa-bubble {
+  position: relative;
+  padding: 6px 9px 5px;
+  border-radius: 10px;
+  background: #fff;
+  color: #1c1a17;
+  box-shadow: 0 1px 1px rgb(0 0 0 / 12%);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.wa-own .wa-bubble { background: #d9fdd3; }
+
+.wa-name { display: block; margin-bottom: 2px; font-size: 12px; }
+.wa-text { white-space: pre-wrap; }
+
+.wa-meta {
+  float: right;
+  margin: 6px 0 -2px 10px;
+  color: #7a7167;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.wa-ticks { margin-left: 3px; letter-spacing: -2px; }
+.wa-seen { color: #34a7e4; }
+
+.wa-reactions { display: flex; flex-wrap: wrap; gap: 3px; margin-top: -4px; padding: 0 6px; position: relative; }
+.wa-reaction {
+  padding: 1px 6px;
+  border: 1px solid #e3dccf;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+}
+.wa-reaction span { margin-left: 3px; color: #5b5348; font-size: 10px; }
+.wa-reaction-mine { border-color: #34a7e4; }
+
+.wa-react-picker {
+  display: flex;
+  gap: 2px;
+  margin: 4px 0;
+  padding: 4px 6px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 22%);
+}
+.wa-react-picker button,
+.wa-emoji-picker button {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 2px 4px;
+}
+.wa-react-picker button:hover,
+.wa-emoji-picker button:hover { background: #f0ebe2; }
+
+.wa-typing { margin: 6px 0 0 32px; color: #6b6258; font-size: 11px; font-style: italic; }
+.wa-dots i {
+  display: inline-block;
+  width: 4px; height: 4px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: #6b6258;
+  animation: wa-bounce 1.2s infinite;
+}
+.wa-dots i:nth-child(2) { animation-delay: .15s; }
+.wa-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes wa-bounce { 0%, 60%, 100% { opacity: .3; } 30% { opacity: 1; } }
+
+.wa-emoji-picker {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  padding: 6px;
+  background: #fff;
+  border-top: 1px solid #e3dccf;
+}
+
+.wa-form { display: flex; align-items: center; gap: 8px; padding: 8px; background: #efe7dc; }
+.wa-input-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+}
+.wa-input-pill input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 4px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #1c1a17;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+.wa-icon-btn { border: 0; background: transparent; cursor: pointer; font-size: 20px; }
+.wa-send {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  background: #1fa855;
+  color: #fff;
+  cursor: pointer;
+  font-size: 16px;
+}
+.wa-send:disabled { opacity: .5; cursor: default; }

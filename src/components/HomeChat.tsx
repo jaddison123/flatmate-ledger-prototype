@@ -10,16 +10,42 @@ interface ChatMessage {
   username: string;
   text: string;
   createdAt: string;
+  /** emoji -> usernames who reacted with it */
+  reactions?: Record<string, string[]>;
+  /** usernames who have seen the message (includes the sender) */
+  readBy?: string[];
+}
+
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "🎉", "🙏"];
+const EMOJI_PICKER = [
+  "😀", "😂", "😅", "😍", "😎", "🤔", "😴", "😭",
+  "👍", "👏", "🙌", "🙏", "💪", "🎉", "🔥", "❤️",
+  "🧹", "🗑️", "🍕", "☕", "🍺", "🛒", "💸", "✅",
+];
+// Name colours, picked deterministically per username (like WhatsApp groups).
+const NAME_COLOURS = ["#6d4bd1", "#e0682e", "#1f8a70", "#c2377a", "#2b7bbd", "#a37a00"];
+
+function nameColour(name: string): string {
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return NAME_COLOURS[hash % NAME_COLOURS.length];
 }
 
 function formatChatTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
-    ? "time unavailable"
-    : new Intl.DateTimeFormat("en-GB", {
-        hour: "numeric",
-        minute: "2-digit",
-      }).format(date);
+    ? ""
+    : new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+function formatDay(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOf(new Date()) - startOf(date)) / 86_400_000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(date);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -36,6 +62,15 @@ function isChatMessage(value: unknown): value is ChatMessage {
   );
 }
 
+/** Small POST helper; chat extras (react/read/typing) fail quietly. */
+function postJson(path: string, body: unknown): Promise<Response> {
+  return fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 function HomeChat({ username, onUsernameChange }: HomeChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionState, setConnectionState] = useState<
@@ -45,7 +80,13 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
   const [text, setText] = useState("");
   const [formError, setFormError] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [reactingTo, setReactingTo] = useState<string | null>(null);
+  const [typingUsers, setTypingUsers] = useState<Record<string, number>>({});
   const messagesRef = useRef<HTMLOListElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const lastTypingPost = useRef(0);
+  const me = username.trim();
 
   useEffect(() => {
     const eventSource = new EventSource("/api/chat/events");
@@ -73,51 +114,89 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
     eventSource.addEventListener("message", (event) => {
       try {
         const message: unknown = JSON.parse((event as MessageEvent<string>).data);
-        if (!isChatMessage(message)) {
-          throw new Error("The chat server sent an invalid message.");
-        }
+        if (!isChatMessage(message)) throw new Error("The chat server sent an invalid message.");
         setMessages((current) =>
           current.some((existing) => existing.id === message.id)
             ? current
             : [...current, message].slice(-200),
         );
+        // The sender has stopped typing once their message arrives.
+        setTypingUsers((current) => {
+          const { [message.username]: _removed, ...rest } = current;
+          return rest;
+        });
         setConnectionError("");
       } catch (error) {
         console.error("Could not read chat message:", error);
         setConnectionError("Could not read a message from the chat server.");
       }
     });
+    // Reactions and read receipts arrive as a replacement for one message.
+    eventSource.addEventListener("update", (event) => {
+      try {
+        const message: unknown = JSON.parse((event as MessageEvent<string>).data);
+        if (!isChatMessage(message)) return;
+        setMessages((current) => current.map((m) => (m.id === message.id ? message : m)));
+      } catch (error) {
+        console.error("Could not read chat update:", error);
+      }
+    });
+    eventSource.addEventListener("typing", (event) => {
+      try {
+        const data: unknown = JSON.parse((event as MessageEvent<string>).data);
+        if (isRecord(data) && typeof data.username === "string") {
+          const name = data.username;
+          setTypingUsers((current) => ({ ...current, [name]: Date.now() + 3500 }));
+        }
+      } catch {
+        /* typing hints are best-effort */
+      }
+    });
 
     return () => eventSource.close();
   }, []);
 
+  // Expire typing indicators.
+  useEffect(() => {
+    if (Object.keys(typingUsers).length === 0) return;
+    const id = window.setTimeout(() => {
+      const now = Date.now();
+      setTypingUsers((current) =>
+        Object.fromEntries(Object.entries(current).filter(([, until]) => until > now)),
+      );
+    }, 1000);
+    return () => window.clearTimeout(id);
+  }, [typingUsers]);
+
+  // Keep the newest message in view.
+  const typingNames = Object.keys(typingUsers).filter((name) => name !== me);
   useEffect(() => {
     const list = messagesRef.current;
     if (list) list.scrollTop = list.scrollHeight;
-  }, [messages.length]);
+  }, [messages.length, typingNames.length]);
+
+  // Send a read receipt when there are messages from others we haven't seen.
+  const hasUnread = me !== "" && messages.some((m) => !(m.readBy ?? []).includes(me));
+  useEffect(() => {
+    if (!hasUnread) return;
+    postJson("/api/chat/read", { username: me }).catch(() => undefined);
+  }, [hasUnread, me, messages.length]);
 
   async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const name = username.trim();
     const message = text.trim();
 
-    if (!name) {
+    if (!me) {
       setFormError("Choose a username before sending a message.");
       return;
     }
-    if (!message) {
-      setFormError("Write a message before sending.");
-      return;
-    }
+    if (!message) return;
 
     setIsSending(true);
     setFormError("");
+    setShowEmojiPicker(false);
     try {
-      const response = await fetch("/api/chat/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: name, text: message }),
-      });
+      const response = await postJson("/api/chat/messages", { username: me, text: message });
       if (!response.ok) {
         const result: unknown = await response.json().catch(() => null);
         const serverMessage =
@@ -127,6 +206,7 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
         throw new Error(serverMessage);
       }
       setText("");
+      inputRef.current?.focus();
     } catch (error) {
       setFormError(
         error instanceof Error
@@ -137,6 +217,33 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
       setIsSending(false);
     }
   }
+
+  function handleTextChange(value: string) {
+    setText(value);
+    const now = Date.now();
+    if (me && value && now - lastTypingPost.current > 2500) {
+      lastTypingPost.current = now;
+      postJson("/api/chat/typing", { username: me }).catch(() => undefined);
+    }
+  }
+
+  function handleReact(id: string, emoji: string) {
+    setReactingTo(null);
+    if (!me) {
+      setFormError("Choose a username before reacting.");
+      return;
+    }
+    postJson("/api/chat/react", { id, username: me, emoji }).catch(() => {
+      setFormError("Could not add that reaction.");
+    });
+  }
+
+  function insertEmoji(emoji: string) {
+    setText((current) => current + emoji);
+    inputRef.current?.focus();
+  }
+
+  const visibleMessages = messages.slice(-60);
 
   return (
     <section className="feature-panel chat-panel" aria-labelledby="chat-heading">
@@ -153,12 +260,9 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
               : "RECONNECTING"}
         </span>
       </div>
-      <p className="feature-description">
-        Message your housemates in real time. No accounts, just a username.
-      </p>
 
       <label className="chat-username field-label">
-        YOUR USERNAME
+        YOUR NAME
         <input
           value={username}
           onChange={(event) => onUsernameChange(event.target.value)}
@@ -170,52 +274,142 @@ function HomeChat({ username, onUsernameChange }: HomeChatProps) {
 
       {connectionError && <p className="chat-server-error" role="alert">{connectionError}</p>}
 
-      <ol
-        className="chat-messages"
-        aria-label="House chat messages"
-        aria-live="polite"
-        ref={messagesRef}
-      >
-        {messages.length === 0 ? (
-          <li className="chat-empty">No messages yet. Start the conversation.</li>
-        ) : messages.slice(-40).map((message) => (
-          <li
-            className={`chat-message${message.username === username.trim() ? " chat-message-own" : ""}`}
-            key={message.id}
-          >
-            <div className="chat-message-heading">
-              <strong>{message.username}</strong>
-              <time dateTime={message.createdAt}>{formatChatTime(message.createdAt)}</time>
-            </div>
-            <p>{message.text}</p>
-          </li>
-        ))}
-      </ol>
-      {messages.length > 40 && (
-        <p className="chat-history-note">Showing the most recent 40 messages.</p>
-      )}
+      <div className="wa-chat">
+        <ol
+          className="wa-messages"
+          aria-label="House chat messages"
+          aria-live="polite"
+          ref={messagesRef}
+        >
+          {visibleMessages.length === 0 ? (
+            <li className="chat-empty">No messages yet. Say hi to your housemates 👋</li>
+          ) : (
+            visibleMessages.map((message, index) => {
+              const own = me !== "" && message.username === me;
+              const previous = visibleMessages[index - 1];
+              const newDay = !previous || formatDay(previous.createdAt) !== formatDay(message.createdAt);
+              const startsGroup = newDay || previous.username !== message.username;
+              const reactions = Object.entries(message.reactions ?? {});
+              const seen = (message.readBy ?? []).some((name) => name !== message.username);
+              const colour = nameColour(message.username);
 
-      <form className="chat-form" onSubmit={handleSend}>
-        <label className="field-label" htmlFor="chat-message">MESSAGE</label>
-        <textarea
-          id="chat-message"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          placeholder="What does the house need to know?"
-          maxLength={500}
-          rows={3}
-          disabled={isSending}
-        />
-        {formError && <p className="form-error" role="alert">{formError}</p>}
-        <div className="chat-form-footer">
-          <span>{text.length}/500</span>
-          <button className="add-chore-button" type="submit" disabled={isSending}>
-            {isSending ? "SENDING…" : "SEND"} <span aria-hidden="true">↗</span>
+              return (
+                <li className="wa-row-wrap" key={message.id}>
+                  {newDay && <div className="wa-day"><span>{formatDay(message.createdAt)}</span></div>}
+                  <div className={`wa-row${own ? " wa-own" : ""}${startsGroup ? " wa-first" : ""}`}>
+                    {!own && (
+                      <span
+                        className="wa-avatar"
+                        style={{ background: startsGroup ? colour : "transparent" }}
+                        aria-hidden="true"
+                      >
+                        {startsGroup ? message.username.charAt(0).toUpperCase() : ""}
+                      </span>
+                    )}
+                    <div className="wa-bubble-col">
+                      <div
+                        className="wa-bubble"
+                        onClick={() => setReactingTo((current) => (current === message.id ? null : message.id))}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Message from ${message.username}. Press to react.`}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setReactingTo((current) => (current === message.id ? null : message.id));
+                          }
+                        }}
+                      >
+                        {!own && startsGroup && (
+                          <strong className="wa-name" style={{ color: colour }}>{message.username}</strong>
+                        )}
+                        <span className="wa-text">{message.text}</span>
+                        <span className="wa-meta">
+                          {formatChatTime(message.createdAt)}
+                          {own && (
+                            <span className={`wa-ticks${seen ? " wa-seen" : ""}`} aria-label={seen ? "Seen" : "Sent"}>
+                              {seen ? "✓✓" : "✓"}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      {reactingTo === message.id && (
+                        <div className="wa-react-picker" role="group" aria-label="React to message">
+                          {QUICK_REACTIONS.map((emoji) => (
+                            <button
+                              type="button"
+                              key={emoji}
+                              onClick={() => handleReact(message.id, emoji)}
+                              aria-label={`React ${emoji}`}
+                            >{emoji}</button>
+                          ))}
+                        </div>
+                      )}
+                      {reactions.length > 0 && (
+                        <div className="wa-reactions">
+                          {reactions.map(([emoji, users]) => (
+                            <button
+                              type="button"
+                              key={emoji}
+                              className={me && users.includes(me) ? "wa-reaction wa-reaction-mine" : "wa-reaction"}
+                              onClick={() => handleReact(message.id, emoji)}
+                              title={users.join(", ")}
+                            >
+                              {emoji}{users.length > 1 && <span>{users.length}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              );
+            })
+          )}
+          {typingNames.length > 0 && (
+            <li className="wa-typing" aria-live="polite">
+              {typingNames.join(", ")} {typingNames.length === 1 ? "is" : "are"} typing
+              <span className="wa-dots" aria-hidden="true"><i /><i /><i /></span>
+            </li>
+          )}
+        </ol>
+
+        {showEmojiPicker && (
+          <div className="wa-emoji-picker" role="group" aria-label="Emoji picker">
+            {EMOJI_PICKER.map((emoji) => (
+              <button type="button" key={emoji} onClick={() => insertEmoji(emoji)}>{emoji}</button>
+            ))}
+          </div>
+        )}
+
+        <form className="wa-form" onSubmit={handleSend}>
+          <div className="wa-input-pill">
+            <button
+              type="button"
+              className="wa-icon-btn"
+              onClick={() => setShowEmojiPicker((open) => !open)}
+              aria-label="Choose an emoji"
+              aria-expanded={showEmojiPicker}
+            >😊</button>
+            <input
+              ref={inputRef}
+              value={text}
+              onChange={(event) => handleTextChange(event.target.value)}
+              placeholder="Message"
+              maxLength={500}
+              disabled={isSending}
+              aria-label="Message"
+              autoComplete="off"
+            />
+          </div>
+          <button className="wa-send" type="submit" disabled={isSending || !text.trim()} aria-label="Send message">
+            ➤
           </button>
-        </div>
-      </form>
+        </form>
+      </div>
+      {formError && <p className="form-error" role="alert">{formError}</p>}
       <p className="chat-local-note">
-        Messages are shared live with everyone connected to this home network.
+        Tap a message to react. Messages are shared live with everyone on this home network.
       </p>
     </section>
   );
