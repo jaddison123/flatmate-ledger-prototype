@@ -65,16 +65,6 @@ function sendEvent(response, eventName, value) {
   response.write(`event: ${eventName}\ndata: ${JSON.stringify(value)}\n\n`);
 }
 
-function broadcastMessage(message) {
-  for (const client of clients) {
-    if (client.destroyed) {
-      clients.delete(client);
-      continue;
-    }
-    sendEvent(client, "message", message);
-  }
-}
-
 async function readRequestJson(request) {
   const chunks = [];
   let size = 0;
@@ -109,7 +99,7 @@ function broadcastEvent(eventName, value) {
   }
 }
 
-// Persist a changed list of messages (used for reactions and read receipts).
+// Write the full message list to disk (atomically) and keep it in memory.
 function persistMessages(nextMessages) {
   const operation = writeQueue.then(async () => {
     await mkdir(dirname(storageFile), { recursive: true });
@@ -119,7 +109,7 @@ function persistMessages(nextMessages) {
     messages = nextMessages;
   });
   writeQueue = operation.catch((error) => {
-    console.error("Could not save chat update:", error);
+    console.error("Could not save chat messages:", error);
   });
   return operation;
 }
@@ -127,22 +117,6 @@ function persistMessages(nextMessages) {
 function cleanUsername(value) {
   const name = typeof value === "string" ? value.trim() : "";
   return name.length >= 1 && name.length <= 30 ? name : "";
-}
-
-function saveMessage(message) {
-  const operation = writeQueue.then(async () => {
-    const nextMessages = [...messages, message].slice(-maxMessages);
-    await mkdir(dirname(storageFile), { recursive: true });
-    const temporaryFile = `${storageFile}.tmp`;
-    await writeFile(temporaryFile, JSON.stringify(nextMessages, null, 2), "utf8");
-    await rename(temporaryFile, storageFile);
-    messages = nextMessages;
-  });
-
-  writeQueue = operation.catch((error) => {
-    console.error("Could not save chat message:", error);
-  });
-  return operation;
 }
 
 async function handleRequest(request, response) {
@@ -188,8 +162,8 @@ async function handleRequest(request, response) {
       readBy: [username],
     });
 
-    await saveMessage(message);
-    broadcastMessage(message);
+    await persistMessages([...messages, message].slice(-maxMessages));
+    broadcastEvent("message", message);
     sendJson(response, 201, { message });
     return;
   }
@@ -323,6 +297,7 @@ async function start() {
       });
     });
   });
+  // Keep-alive comment so proxies (e.g. Render) do not close idle event streams.
   const heartbeat = setInterval(() => {
     for (const client of clients) {
       if (client.destroyed) {

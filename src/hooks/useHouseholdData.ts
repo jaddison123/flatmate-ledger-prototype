@@ -83,7 +83,6 @@ function isExpense(value: unknown): value is Expense {
 type StoredHouseholdData = Omit<HouseholdData, "chatUsername" | "householdName"> & {
   chatUsername?: string;
   householdName?: string;
-  chatMessages?: unknown;
 };
 
 function isHouseholdData(value: unknown): value is StoredHouseholdData {
@@ -95,7 +94,6 @@ function isHouseholdData(value: unknown): value is StoredHouseholdData {
     value.chores.every(isChore) &&
     Array.isArray(value.expenses) &&
     value.expenses.every(isExpense) &&
-    (value.chatMessages === undefined || Array.isArray(value.chatMessages)) &&
     (value.chatUsername === undefined || typeof value.chatUsername === "string") &&
     (value.householdName === undefined || typeof value.householdName === "string")
   );
@@ -184,16 +182,6 @@ export function useHouseholdData() {
     return id;
   }
 
-  function updateRoommate(
-    id: string,
-    updates: Partial<Omit<Roommate, "id">>,
-  ): void {
-    setData((current) => ({
-      ...current,
-      roommates: updateById(current.roommates, id, updates),
-    }));
-  }
-
   function removeRoommate(id: string): void {
     setData((current) => ({
       ...current,
@@ -233,16 +221,6 @@ export function useHouseholdData() {
     return id;
   }
 
-  function updateExpense(
-    id: string,
-    updates: Partial<Omit<Expense, "id">>,
-  ): void {
-    setData((current) => ({
-      ...current,
-      expenses: updateById(current.expenses, id, updates),
-    }));
-  }
-
   function removeExpense(id: string): void {
     setData((current) => ({
       ...current,
@@ -263,13 +241,11 @@ export function useHouseholdData() {
     storageError,
     setHouseholdName,
     addRoommate,
-    updateRoommate,
     removeRoommate,
     addChore,
     updateChore,
     removeChore,
     addExpense,
-    updateExpense,
     removeExpense,
     setChatUsername,
   };
