@@ -1,4 +1,6 @@
-# Flatmate Ledger & Chore Tracker
+# Chore Score
+
+(Formerly "Flatmate Ledger"; the repo, package name and localStorage key `flatmate-ledger:household:v1` keep the old name on purpose, so do not rename them: it would break the repo link and wipe users' saved data.)
 
 A student-project prototype for university students sharing a rented home. It tracks chores, shared bills and has a live house chat. Dark mode is the default theme.
 

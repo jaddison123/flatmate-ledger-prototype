@@ -185,12 +185,12 @@ function App() {
     <main className={`app-shell${darkMode ? " dark-mode" : ""}`}>
       <div className="dashboard">
         <header className="topbar">
-          <a className="brand" href="/" aria-label="Flatmate Ledger home">
+          <a className="brand" href="/" aria-label="Chore Score home">
             <span className="brand-mark" aria-hidden="true">
-              F<span>L</span>
+              C<span>S</span>
             </span>
             <span className="brand-name">
-              FLATMATE<span>LEDGER</span>
+              CHORE<span>SCORE</span>
             </span>
           </a>
           <div className="topbar-actions">
@@ -491,7 +491,7 @@ function App() {
         </section>
 
         <footer className="page-footer">
-          <span>FLATMATE LEDGER <b>—</b> MADE FOR THE EVERYDAY.</span>
+          <span>CHORE SCORE <b>—</b> MADE FOR THE EVERYDAY.</span>
           <span>A HOUSE THAT WORKS, WORKS FOR EVERYONE.</span>
         </footer>
       </div>

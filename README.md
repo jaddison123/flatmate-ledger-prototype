@@ -1,4 +1,4 @@
-# Flatmate Ledger
+# Chore Score
 
 A household ledger, chore tracker and live chat for university students sharing a rented home. It is a prototype built as a university project.
 
