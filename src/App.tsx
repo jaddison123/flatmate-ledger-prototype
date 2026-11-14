@@ -67,8 +67,7 @@ function App() {
 
   // Shown in the hero headline; falls back to the original tagline until a name is set.
   const houseName = householdName.trim();
-  const headlineName = houseName || "Good house";
-  const headlineText = /[.!?]$/.test(headlineName) ? headlineName : `${headlineName}.`;
+  const headlineText = houseName || "Good house";
 
   function handleSaveHouseName(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
