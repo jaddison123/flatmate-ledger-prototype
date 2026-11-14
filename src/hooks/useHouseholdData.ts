@@ -28,6 +28,8 @@ export interface HouseholdData {
   chores: Chore[];
   expenses: Expense[];
   chatUsername: string;
+  /** Display name of the house, shown in the hero and top bar. Empty = default. */
+  householdName: string;
 }
 
 const STORAGE_KEY = "flatmate-ledger:household:v1";
@@ -37,6 +39,7 @@ const EMPTY_HOUSEHOLD: HouseholdData = {
   chores: [],
   expenses: [],
   chatUsername: "",
+  householdName: "",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -77,8 +80,9 @@ function isExpense(value: unknown): value is Expense {
   );
 }
 
-type StoredHouseholdData = Omit<HouseholdData, "chatUsername"> & {
+type StoredHouseholdData = Omit<HouseholdData, "chatUsername" | "householdName"> & {
   chatUsername?: string;
+  householdName?: string;
   chatMessages?: unknown;
 };
 
@@ -92,7 +96,8 @@ function isHouseholdData(value: unknown): value is StoredHouseholdData {
     Array.isArray(value.expenses) &&
     value.expenses.every(isExpense) &&
     (value.chatMessages === undefined || Array.isArray(value.chatMessages)) &&
-    (value.chatUsername === undefined || typeof value.chatUsername === "string")
+    (value.chatUsername === undefined || typeof value.chatUsername === "string") &&
+    (value.householdName === undefined || typeof value.householdName === "string")
   );
 }
 
@@ -121,6 +126,7 @@ function readHouseholdData(): { data: HouseholdData; error: string | null } {
         chores: parsed.chores,
         expenses: parsed.expenses,
         chatUsername: parsed.chatUsername ?? "",
+        householdName: parsed.householdName ?? "",
       },
       error: null,
     };
@@ -248,9 +254,14 @@ export function useHouseholdData() {
     setData((current) => ({ ...current, chatUsername }));
   }
 
+  function setHouseholdName(householdName: string): void {
+    setData((current) => ({ ...current, householdName }));
+  }
+
   return {
     ...data,
     storageError,
+    setHouseholdName,
     addRoommate,
     updateRoommate,
     removeRoommate,

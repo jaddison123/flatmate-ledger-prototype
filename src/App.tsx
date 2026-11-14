@@ -40,6 +40,8 @@ function App() {
     chores,
     expenses,
     chatUsername,
+    householdName,
+    setHouseholdName,
     storageError,
     addRoommate,
     removeRoommate,
@@ -60,6 +62,19 @@ function App() {
   const [roommateName, setRoommateName] = useState("");
   const [formError, setFormError] = useState("");
   const [today, setToday] = useState(() => new Date());
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+
+  // Shown in the hero headline; falls back to the original tagline until a name is set.
+  const houseName = householdName.trim();
+  const headlineName = houseName || "Good house";
+  const headlineText = /[.!?]$/.test(headlineName) ? headlineName : `${headlineName}.`;
+
+  function handleSaveHouseName(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setHouseholdName(nameDraft.trim());
+    setIsEditingName(false);
+  }
 
   useEffect(() => {
     const now = new Date();
@@ -178,7 +193,7 @@ function App() {
           <div className="topbar-actions">
             <span className="status-pill">
               <span className="status-dot" />
-              HOUSEHOLD HQ
+              <span className="status-pill-name">{houseName ? houseName.toUpperCase() : "HOUSEHOLD HQ"}</span>
             </span>
             <button
               className="theme-toggle"
@@ -196,11 +211,43 @@ function App() {
         <section className="hero">
           <div className="hero-copy">
             <p className="eyebrow"><span>★</span> THE WEEKLY RESET</p>
-            <h1>Good week.<br /><span>Good house.</span></h1>
+            <h1>Good week.<br /><span className="house-name">{headlineText}</span></h1>
             <p className="hero-description">
               The little jobs that keep your place running. Shared fairly,
               checked off together.
             </p>
+            {isEditingName ? (
+              <form className="house-name-form" onSubmit={handleSaveHouseName}>
+                <label className="field-label" htmlFor="house-name-input">NAME OF YOUR HOUSE</label>
+                <div className="house-name-row">
+                  <input
+                    autoFocus
+                    id="house-name-input"
+                    value={nameDraft}
+                    onChange={(event) => setNameDraft(event.target.value)}
+                    placeholder="e.g. 42 Maple Street"
+                    maxLength={28}
+                  />
+                  <button className="add-chore-button" type="submit">SAVE</button>
+                  <button
+                    className="rotate-button"
+                    type="button"
+                    onClick={() => setIsEditingName(false)}
+                  >CANCEL</button>
+                </div>
+              </form>
+            ) : (
+              <button
+                className="rename-house-button"
+                type="button"
+                onClick={() => {
+                  setNameDraft(houseName);
+                  setIsEditingName(true);
+                }}
+              >
+                <span aria-hidden="true">✎</span> {houseName ? "RENAME YOUR HOUSE" : "NAME YOUR HOUSE"}
+              </button>
+            )}
           </div>
           <div className="week-card" aria-label="Current week">
             <div className="week-card-top">

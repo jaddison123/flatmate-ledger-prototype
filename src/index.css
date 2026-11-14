@@ -1805,3 +1805,46 @@ a {
   font-size: 16px;
 }
 .wa-send:disabled { opacity: .5; cursor: default; }
+
+/* ---------- Household name ---------- */
+.hero-copy { min-width: 0; }
+.hero h1 .house-name {
+  display: block;
+  overflow-wrap: anywhere;
+  /* Long names shrink a little so they stay on the page */
+  font-size: clamp(38px, 5vw, 60px);
+}
+.status-pill-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rename-house-button {
+  margin-top: 16px;
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: "Arial Narrow", Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+.rename-house-button:hover { border-color: var(--red); color: var(--red); }
+.house-name-form { margin-top: 16px; max-width: 460px; }
+.house-name-form .field-label { display: block; margin-bottom: 6px; }
+.house-name-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.house-name-row input {
+  flex: 1 1 180px;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+}
