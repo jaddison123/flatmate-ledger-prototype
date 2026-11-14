@@ -117,12 +117,14 @@ a {
 .brand-mark {
   width: 36px;
   height: 36px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--red);
   color: #fff;
   font-family: Impact, sans-serif;
   font-size: 19px;
+  line-height: 1;
   letter-spacing: -3px;
   transform: rotate(-4deg);
 }
@@ -332,22 +334,6 @@ a {
 .week-card-foot b {
   color: var(--red);
   font-size: 13px;
-}
-
-.hero-stamp {
-  position: absolute;
-  top: 28px;
-  right: 0;
-  color: var(--red);
-  font-family: Impact, sans-serif;
-  font-size: 10px;
-  line-height: 1.2;
-  text-align: center;
-  transform: rotate(9deg);
-}
-
-.hero-stamp b {
-  font-size: 8px;
 }
 
 .stats-row {
@@ -1374,10 +1360,6 @@ a {
 @media (max-width: 800px) {
   .dashboard {
     padding: 0 34px;
-  }
-
-  .hero-stamp {
-    display: none;
   }
 
   .hero {

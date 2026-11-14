@@ -226,7 +226,6 @@ function App() {
               <span>YOU’VE GOT THIS <b>↗</b></span>
             </div>
           </div>
-          <span className="hero-stamp" aria-hidden="true">NO<br />DRAMA<br /><b>JUST DONE</b></span>
         </section>
 
         <section className="stats-row" aria-label="Household chore summary">
