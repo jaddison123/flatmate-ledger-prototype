@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useHouseholdData } from "./hooks/useHouseholdData";
 import BillTracker from "./components/BillTracker";
 import HomeChat from "./components/HomeChat";
+import Notes from "./components/Notes";
 
 type ChoreFilter = "all" | "open" | "done";
 
@@ -39,6 +40,9 @@ function App() {
     roommates,
     chores,
     expenses,
+    notes,
+    addNote,
+    removeNote,
     chatUsername,
     householdName,
     setHouseholdName,
@@ -470,6 +474,8 @@ function App() {
             <span>ONE WEEK AT A TIME.</span>
           </div>
         </section>
+
+        <Notes notes={notes} onAdd={addNote} onRemove={removeNote} />
 
         <section className="household-features" aria-label="Household tools">
           <BillTracker

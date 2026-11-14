@@ -23,10 +23,18 @@ export interface Expense {
   date: string;
 }
 
+/** A short reminder or note that is not a chore (e.g. "Landlord visiting Friday"). */
+export interface Note {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface HouseholdData {
   roommates: Roommate[];
   chores: Chore[];
   expenses: Expense[];
+  notes: Note[];
   chatUsername: string;
   /** Display name of the house, shown in the hero and top bar. Empty = default. */
   householdName: string;
@@ -38,6 +46,7 @@ const EMPTY_HOUSEHOLD: HouseholdData = {
   roommates: [],
   chores: [],
   expenses: [],
+  notes: [],
   chatUsername: "",
   householdName: "",
 };
@@ -80,7 +89,18 @@ function isExpense(value: unknown): value is Expense {
   );
 }
 
-type StoredHouseholdData = Omit<HouseholdData, "chatUsername" | "householdName"> & {
+function isNote(value: unknown): value is Note {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.text === "string" &&
+    typeof value.createdAt === "string"
+  );
+}
+
+// Fields added after the first release are optional so older saved data still loads.
+type StoredHouseholdData = Omit<HouseholdData, "chatUsername" | "householdName" | "notes"> & {
+  notes?: Note[];
   chatUsername?: string;
   householdName?: string;
 };
@@ -94,6 +114,7 @@ function isHouseholdData(value: unknown): value is StoredHouseholdData {
     value.chores.every(isChore) &&
     Array.isArray(value.expenses) &&
     value.expenses.every(isExpense) &&
+    (value.notes === undefined || (Array.isArray(value.notes) && value.notes.every(isNote))) &&
     (value.chatUsername === undefined || typeof value.chatUsername === "string") &&
     (value.householdName === undefined || typeof value.householdName === "string")
   );
@@ -123,6 +144,7 @@ function readHouseholdData(): { data: HouseholdData; error: string | null } {
         roommates: parsed.roommates,
         chores: parsed.chores,
         expenses: parsed.expenses,
+        notes: parsed.notes ?? [],
         chatUsername: parsed.chatUsername ?? "",
         householdName: parsed.householdName ?? "",
       },
@@ -232,6 +254,21 @@ export function useHouseholdData() {
     setData((current) => ({ ...current, chatUsername }));
   }
 
+  function addNote(text: string): void {
+    setData((current) => ({
+      ...current,
+      // Newest first
+      notes: [
+        { id: createId(), text, createdAt: new Date().toISOString() },
+        ...current.notes,
+      ],
+    }));
+  }
+
+  function removeNote(id: string): void {
+    setData((current) => ({ ...current, notes: removeById(current.notes, id) }));
+  }
+
   function setHouseholdName(householdName: string): void {
     setData((current) => ({ ...current, householdName }));
   }
@@ -239,6 +276,8 @@ export function useHouseholdData() {
   return {
     ...data,
     storageError,
+    addNote,
+    removeNote,
     setHouseholdName,
     addRoommate,
     removeRoommate,

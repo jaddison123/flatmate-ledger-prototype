@@ -24,13 +24,14 @@ src/
   App.tsx                  page layout, hero + house name, chore board, housemates dialog
   hooks/useHouseholdData.ts  all household state, persisted to localStorage
   components/BillTracker.tsx bills, equal splits, net balances
+  components/Notes.tsx       small board of non-chore reminders (140 chars each, newest first)
   components/HomeChat.tsx    WhatsApp-style live chat UI
 server.mjs                 chat API + serves dist/ in production
 dev.mjs                    runs vite + chat server together
 ```
 
 ### Household data (browser only)
-`useHouseholdData` holds `roommates`, `chores`, `expenses`, `chatUsername` and `householdName` under the localStorage key `flatmate-ledger:household:v1`. Stored data is validated with type guards on load; invalid data resets to empty and sets `storageError`. When adding a field, make it optional in the stored type and default it on read so existing saved data keeps working (see how `householdName` was added).
+`useHouseholdData` holds `roommates`, `chores`, `expenses`, `notes`, `chatUsername` and `householdName` under the localStorage key `flatmate-ledger:household:v1`. Stored data is validated with type guards on load; invalid data resets to empty and sets `storageError`. When adding a field, make it optional in the stored type and default it on read so existing saved data keeps working (see how `householdName` was added).
 
 ### Chores
 - A chore is "complete" only if `completed` is true **and** `completedWeek` equals the current Monday-start week key, so everything resets each Monday with no timer.

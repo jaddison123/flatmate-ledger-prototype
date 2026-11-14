@@ -8,6 +8,7 @@ A household ledger, chore tracker and live chat for university students sharing 
 - **Housemates:** add and remove the people in the house.
 - **Chore board:** add chores, assign them, set optional due dates, tick them off, and filter by all / to do / done. Completions reset every Monday. "Rotate the roster" passes each assigned chore to the next housemate.
 - **Bill tracker:** record bills in GBP, choose who paid and who shares each bill, and see each housemate's net balance. Bills are split equally, in whole pence; leftover pennies go to the first people selected.
+- **Notes:** a small board for short reminders that are not chores (for example "Landlord visiting Friday"). Add a note, remove it when it is no longer needed.
 - **House chat:** a WhatsApp-style live chat with message bubbles, emoji reactions (tap a message), read ticks (grey = sent, blue = seen), a typing indicator and an emoji picker. No account is needed, only a name.
 - **Dark mode** by default, with a light mode toggle.
 
@@ -15,7 +16,7 @@ A household ledger, chore tracker and live chat for university students sharing 
 
 | Data | Stored |
 | --- | --- |
-| Housemates, chores, bills, house name, chat name | In each person's own browser (`localStorage`). Not shared between devices. |
+| Housemates, chores, bills, notes, house name, chat name | In each person's own browser (`localStorage`). Not shared between devices. |
 | Chat messages, reactions, read ticks | On the chat server (`server-data/chat-messages.json`, last 200 messages). Shared live with everyone connected. |
 
 ## Getting started
@@ -49,6 +50,7 @@ src/
   App.tsx                     layout, hero and house name, chore board, housemates dialog
   hooks/useHouseholdData.ts   typed household state saved to localStorage
   components/BillTracker.tsx  bills, equal splits, balances
+  components/Notes.tsx        notes board for non-chore reminders
   components/HomeChat.tsx     live chat interface
 server.mjs                    chat server (Node built-ins only); serves dist/ in production
 dev.mjs                       runs Vite and the chat server together
@@ -105,7 +107,7 @@ Optional environment variables: `PORT`, `CHAT_PORT` (default 3001), `CHAT_HOST`,
 
 ## Known limitations
 
-- Chores, bills, housemates and the house name are stored per browser, so housemates do not see each other's lists. Only the chat is shared.
+- Chores, bills, notes, housemates and the house name are stored per browser, so housemates do not see each other's lists. Only the chat is shared.
 - The chat has no authentication. Anyone with the link can read it and post under any name, so only share the link with people you trust.
 - Bills show net balances only. There is no "who pays whom" breakdown and no way to record a repayment.
 - Chat history is limited to the last 200 messages and may be lost on free hosting.
