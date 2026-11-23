@@ -31,6 +31,8 @@ export interface FlatSceneProps {
   focus: RoomId | null;
   /** A side sheet covers the right of the screen: keep the room in the visible part. */
   sheetWidth: number;
+  /** The housemate using this device: their avatar gets a ring, their door says so. */
+  meId: string | null;
   /** Bumped by the "recentre" button. */
   recentreKey: number;
   still: boolean;
@@ -219,7 +221,7 @@ function Flat(props: FlatSceneProps & { p: ScenePalette }) {
       <Television p={p} style={decor.tv} roommates={roommates} chores={chores} onSelect={onSelect} />
       <Whiteboard p={p} style={decor.board} chores={chores} roommates={roommates} shuffleKey={shuffleKey} still={still} onSelect={onSelect} />
       <FrontDoor p={p} style={decor.frontDoor} householdName={props.householdName} status={props.status} still={still} onSelect={onSelect} />
-      <BedroomDoors p={p} roommates={roommates} onSelect={onSelect} />
+      <BedroomDoors p={p} roommates={roommates} meId={props.meId} onSelect={onSelect} />
       <Housemates
         roommates={roommates}
         chores={chores}
@@ -229,6 +231,8 @@ function Flat(props: FlatSceneProps & { p: ScenePalette }) {
         hopKey={shuffleKey}
         cheers={cheers}
         still={still}
+        meId={props.meId}
+        accent={p.red}
         onSelect={onSelect}
       />
       <Mess p={p} chores={chores} roommates={roommates} still={still} onSelect={onSelect} />

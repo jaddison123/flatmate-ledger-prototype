@@ -1,12 +1,19 @@
-import { useState, type FormEvent } from "react";
+import { lazy, Suspense, useState, type FormEvent } from "react";
 import { LIMITS, type Roommate } from "../hooks/useHouseholdData";
 import { formatHouseCode, inviteLink } from "../lib/house";
 import { initial } from "../lib/nameColour";
+
+// Only downloaded (with its QR encoder) when someone asks for the code.
+const InviteQr = lazy(() => import("./InviteQr"));
 
 interface HouseSettingsProps {
   houseCode: string;
   householdName: string;
   roommates: Roommate[];
+  /** The housemate using this device, if they've said ("This is me"). */
+  meId: string | null;
+  /** A housemate's id, or null for "not me". */
+  onChooseMe: (id: string | null) => void;
   /** Show the "name of your house" form (the list view has it in the hero instead). */
   showRename?: boolean;
   onRename: (name: string) => void;
@@ -21,6 +28,8 @@ function HouseSettings({
   houseCode,
   householdName,
   roommates,
+  meId,
+  onChooseMe,
   showRename = false,
   onRename,
   onAddRoommate,
@@ -31,6 +40,7 @@ function HouseSettings({
   const [formError, setFormError] = useState("");
   const [nameDraft, setNameDraft] = useState(householdName);
   const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const houseFull = roommates.length >= LIMITS.roommates;
 
   function handleAddRoommate(event: FormEvent<HTMLFormElement>) {
@@ -126,6 +136,15 @@ function HouseSettings({
             <span className="avatar">{initial(roommate.name)}</span>
             <span>{roommate.name}</span>
             <button
+              className={`me-button${roommate.id === meId ? " active" : ""}`}
+              type="button"
+              onClick={() => onChooseMe(roommate.id === meId ? null : roommate.id)}
+              aria-pressed={roommate.id === meId}
+              aria-label={roommate.id === meId ? `You are ${roommate.name} on this device. Undo` : `${roommate.name} is me`}
+            >
+              {roommate.id === meId ? "YOU ✓" : "THIS IS ME"}
+            </button>
+            <button
               className="remove-roommate"
               type="button"
               onClick={() => onRemoveRoommate(roommate.id)}
@@ -149,6 +168,22 @@ function HouseSettings({
             {copied ? "COPIED" : "COPY"}
           </button>
         </div>
+        <button
+          className="remove-roommate qr-toggle"
+          type="button"
+          onClick={() => setShowQr((shown) => !shown)}
+          aria-expanded={showQr}
+        >
+          {showQr ? "HIDE QR CODE" : "SHOW QR CODE"}
+        </button>
+        {showQr && (
+          <div className="invite-qr-box">
+            <Suspense fallback={<div className="invite-qr invite-qr-loading" role="status">Making the code…</div>}>
+              <InviteQr link={inviteLink(houseCode)} />
+            </Suspense>
+            <p className="dialog-note">Point a phone camera at it to open the house.</p>
+          </div>
+        )}
         <p className="dialog-note">
           House code <b>{formatHouseCode(houseCode)}</b>. Send the link to your housemates:
           anyone who has it can see and change this house.

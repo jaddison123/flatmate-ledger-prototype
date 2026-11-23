@@ -105,6 +105,20 @@ export function saveChatName(name: string): void {
 }
 
 /**
+ * Which housemate this device belongs to, per house: a roommate id, NOT_ME ("just looking",
+ * so don't ask again), or null (not asked yet). Never shared: each device says who it is.
+ */
+export const NOT_ME = "none";
+
+export function readMe(code: string): string | null {
+  return readStorage(`chore-score:me:${code}`);
+}
+
+export function saveMe(code: string, value: string | null): void {
+  writeStorage(`chore-score:me:${code}`, value);
+}
+
+/**
  * This device's secret chat key. The server ties your chat name to it, so nobody else can post
  * under your name. Created once; clearing site data means picking a new name.
  */

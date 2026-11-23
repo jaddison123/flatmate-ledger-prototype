@@ -1240,6 +1240,66 @@ a {
   color: var(--red);
 }
 
+/* "This is me" in the housemate list; pushes REMOVE to the right edge with it. */
+.me-button {
+  margin-left: auto;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: "Arial Narrow", Arial, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+}
+
+.me-button:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.me-button.active {
+  border-color: var(--red);
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.me-button + .remove-roommate {
+  margin-left: 4px;
+}
+
+/* The invite link's QR code: always dark on white so phones can scan it in dark mode too. */
+.qr-toggle {
+  display: block;
+  margin: 10px 0 0;
+  padding: 4px 0;
+  font-size: 9px;
+}
+
+.invite-qr-box {
+  display: grid;
+  justify-items: center;
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--paper-muted);
+}
+
+.invite-qr {
+  width: 200px;
+  height: 200px;
+  background: #fff;
+}
+
+.invite-qr-loading {
+  display: grid;
+  place-items: center;
+  color: #555;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+}
+
 .roommate-empty,
 .dialog-note {
   color: var(--muted);
@@ -2305,6 +2365,108 @@ a {
   padding: 0 14px;
 }
 
+/* "Which one are you?" (WhoAmI.tsx): floats where the tour card does in the flat, or sits
+   above the chore board in the list view. */
+.who-am-i {
+  padding: 14px 18px 16px;
+  border-top: 4px solid var(--red);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.who-am-i-flat {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  right: 72px;
+  width: 380px;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  box-shadow: var(--shadow), 0 18px 48px rgb(0 0 0 / 22%);
+  transform: translateY(-50%);
+  animation: flat-pop 220ms ease-out;
+}
+
+.who-am-i-list {
+  margin: 0 0 24px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--red);
+}
+
+.who-am-i-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.who-am-i h2 {
+  margin: 10px 0 6px;
+  font-family: Impact, "Arial Narrow", sans-serif;
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.who-am-i p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.who-am-i-people {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 8px;
+}
+
+.who-am-i-person {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 4px 8px;
+  border: 1px solid var(--line);
+  background: var(--paper-raised);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: "Arial Narrow", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  overflow-wrap: anywhere;
+}
+
+.who-am-i-person:hover,
+.who-am-i-person:focus-visible {
+  border-color: var(--red);
+  background: var(--red-soft);
+}
+
+.who-am-i-person .look-preview {
+  width: 52px;
+  height: 80px;
+}
+
+/* Three classes: must beat .flat-tag.flat-initial, which comes later in this file. */
+.flat-tag.flat-initial.flat-initial-me {
+  background: var(--red);
+  color: #fff;
+  letter-spacing: .06em;
+}
+
+.flat-mine {
+  margin: 6px 0 0;
+  color: var(--ink);
+  font-family: "Arial Narrow", Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
 /* The room the tour is showing: its button pulses. */
 .flat-room-button.touring {
   border-color: var(--red);
@@ -2877,6 +3039,21 @@ a {
 
   .look-preview {
     height: 150px;
+  }
+
+  .who-am-i-flat {
+    top: auto;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    width: auto;
+    max-height: 60%;
+    padding: 12px 14px 14px;
+    transform: none;
+  }
+
+  .who-am-i h2 {
+    font-size: 22px;
   }
 }
 

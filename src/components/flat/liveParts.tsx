@@ -901,7 +901,12 @@ function DoorPlate({ text }: { text: string }) {
   );
 }
 
-export function BedroomDoors({ p, roommates, onSelect }: { p: ScenePalette; roommates: Roommate[]; onSelect: Select }) {
+export function BedroomDoors({ p, roommates, meId, onSelect }: {
+  p: ScenePalette;
+  roommates: Roommate[];
+  meId: string | null;
+  onSelect: Select;
+}) {
   // One door per housemate, opening their look picker; if there are more than fit, the last door
   // says "+N more" and opens the first of those. With no housemates there are no bedroom doors.
   const overflow = roommates.length > MAX_BEDROOM_DOORS;
@@ -930,7 +935,7 @@ export function BedroomDoors({ p, roommates, onSelect }: { p: ScenePalette; room
           at={[3.65 + index * 0.9, 0, -4.97]}
           onSelect={(room) => onSelect(room, door.personId)}
           tagHeight={2.2}
-          label={<><b>{door.text}</b><span className="flat-tag-sub">{overflow && door.key === "more" ? "Change their looks" : "Change their look"}</span></>}
+          label={<><b>{door.text}</b><span className="flat-tag-sub">{door.personId === meId && door.key !== "more" ? "Your room: change your look" : "Change their look"}</span></>}
         >
           <Block size={[0.86, 1.9, 0.04]} at={[0, 0, -0.01]} color={p.white} />
           <Block size={[0.74, 1.82, 0.06]} at={[0, 0, 0]} color={door.colour} />

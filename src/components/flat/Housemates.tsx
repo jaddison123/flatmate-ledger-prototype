@@ -87,8 +87,8 @@ function HeldThings({ refs }: { refs: { current: Partial<Record<Prop, Group | nu
 }
 
 function Housemate({
-  person, life, home, still, onSelect,
-}: { person: Roommate; life: Life; home: Vec3; still: boolean; onSelect: Select }) {
+  person, life, home, still, isMe, accent, onSelect,
+}: { person: Roommate; life: Life; home: Vec3; still: boolean; isMe: boolean; accent: string; onSelect: Select }) {
   const root = useRef<Group>(null);
   const body = useRef<Group>(null);
   const held = useRef<Partial<Record<Prop, Group | null>>>({});
@@ -161,12 +161,24 @@ function Housemate({
         at={ORIGIN}
         onSelect={(room) => onSelect(room, person.id)}
         tagHeight={1.8}
-        label={<><b>{person.name}</b><span className="flat-tag-sub">{ui.label || "Change their look"}</span></>}
+        label={<><b>{isMe ? `${person.name} (you)` : person.name}</b><span className="flat-tag-sub">{ui.label || (isMe ? "Change your look" : "Change their look")}</span></>}
       >
+        {/* A ring on the floor under your own avatar (outside `body`, so it doesn't bob).
+            Floors top out at 0.04 and rugs at 0.07, so it sits just above both. */}
+        {isMe && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.085, 0]}>
+            <ringGeometry args={[0.32, 0.4, 24]} />
+            <meshBasicMaterial color={accent} transparent opacity={0.85} toneMapped={false} />
+          </mesh>
+        )}
         <group ref={body}>
           <Avatar look={person.look} name={person.name} />
           <HeldThings refs={held} />
-          {!ui.hidden && <Tag position={[0, 1.35, 0]} className="flat-initial">{initial(person.name)}</Tag>}
+          {!ui.hidden && (
+            <Tag position={[0, 1.35, 0]} className={isMe ? "flat-initial flat-initial-me" : "flat-initial"}>
+              {isMe ? "YOU" : initial(person.name)}
+            </Tag>
+          )}
           {ui.emote && !ui.hidden && (
             <Overlay position={EMOTE_AT} className="flat-emote">
               <span key={ui.emoteKey} className="flat-emote-text" aria-hidden="true">{ui.emote}</span>
@@ -203,7 +215,7 @@ export interface Cheer {
 }
 
 export function Housemates({
-  roommates, chores, expenses, sofa, chat, hopKey, cheers, still, onSelect,
+  roommates, chores, expenses, sofa, chat, hopKey, cheers, still, meId, accent, onSelect,
 }: {
   roommates: Roommate[];
   chores: SceneChore[];
@@ -213,6 +225,10 @@ export function Housemates({
   hopKey: number;
   cheers: Cheer;
   still: boolean;
+  /** The housemate using this device (ring + "YOU" tag). */
+  meId: string | null;
+  /** Colour of that ring (the theme's red). */
+  accent: string;
   onSelect: Select;
 }) {
   const [life] = useState(createLife);
@@ -263,7 +279,7 @@ export function Housemates({
   return (
     <>
       {people.map((person, index) => (
-        <Housemate key={person.id} person={person} life={life} home={AVATAR_SPOTS[index]} still={still} onSelect={onSelect} />
+        <Housemate key={person.id} person={person} life={life} home={AVATAR_SPOTS[index]} still={still} isMe={person.id === meId} accent={accent} onSelect={onSelect} />
       ))}
     </>
   );

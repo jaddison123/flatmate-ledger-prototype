@@ -14,7 +14,8 @@ A student-project prototype for university students sharing a rented home. It tr
 ## Stack and constraints
 
 - React 19 + TypeScript + Vite, Tailwind CSS v4 (via `@tailwindcss/vite`), plus a plain Node chat server (`server.mjs`) that uses only built-ins.
-- The 3D flat uses `three`, `@react-three/fiber` and `@react-three/drei` (only `OrbitControls` and `useCursor`): the one deliberate exception to the minimal-dependency rule. It is lazy-loaded (`FlatScene` chunk, ~260 kB gzipped) so the start screen and list view never download it.
+- The 3D flat uses `three`, `@react-three/fiber` and `@react-three/drei` (only `OrbitControls` and `useCursor`): a deliberate exception to the minimal-dependency rule. It is lazy-loaded (`FlatScene` chunk, ~260 kB gzipped) so the start screen and list view never download it.
+- The invite link's QR code uses `qrcode-generator` (no dependencies of its own, ~7 kB gzipped): the other agreed exception, since a QR encoder is not "a few lines". `InviteQr.tsx` is lazy-loaded, so it only downloads when someone presses SHOW QR CODE.
 - Keep the dependency list minimal: do not add libraries for things the platform or a few lines of code can do (for example `dev.mjs` replaces `concurrently`).
 - Keep code modular, clean and commented where the reason is not obvious. Match the existing style: functional components, typed props, small helper functions at the top of the file.
 - Most styling is hand-written in `src/index.css` using CSS variables (`--red`, `--ink`, `--muted`, `--line`, `--paper`...). Reuse those variables so light and dark mode both work. Chat styles are prefixed `wa-`, 3D flat styles `flat-` / `room-sheet`.
@@ -28,7 +29,9 @@ src/
   lib/week.ts, lib/bills.ts, lib/nameColour.ts, lib/sfx.ts   week keys, bill maths, person colours, Web Audio blips
   hooks/useModalFocus.ts     Escape / Tab trap / focus return for dialogs and the room sheet
   components/ChoreBoard.tsx  chore list, filters, add form, rotate button (used by both views)
-  components/HouseSettings.tsx housemates, invite link, rename, leave (list dialog and the flat's front door)
+  components/HouseSettings.tsx housemates ("This is me"), invite link + QR code, rename, leave (list dialog and the flat's front door)
+  components/InviteQr.tsx    the invite link as a QR code (lazy, with its encoder)
+  components/WhoAmI.tsx      "Which one are you?" card (floats in the flat, banner in the list view)
   components/flat/           the 3D flat (see "3D flat" below)
   hooks/useHouseholdData.ts  a house's shared data, synced with the server (optimistic actions + SSE)
   lib/house.ts               house codes, invite links, per-device localStorage, apiRequest helper
@@ -55,7 +58,8 @@ dev.mjs                    runs vite + server together
 - Removals of things already gone return the same object, so the server treats them as no change.
 - `removeRoommate` also unassigns their chores, server side, in one step.
 - At most 8 housemates can be added (`LIMITS.roommates`, one avatar spot each); houses saved before the cap may hold up to `LIMITS.storedRoommates` (30) and must keep loading, so validation of stored data uses that.
-- Per device (localStorage): `chore-score:house` (current code), `chore-score:chat-name`, `chore-score:theme`, `chore-score:view` (`flat`/`list`), `chore-score:sound` (`on`/`off`), `chore-score:tour` (`done` once the flat tour is finished or skipped), `chore-score:house-cache:<code>` (last copy, shown while the server wakes). The old key `flatmate-ledger:household:v1` is only read to offer uploading pre-sharing data when creating a house (then `chore-score:legacy-imported` is set); never write or rename it.
+- Per device (localStorage): `chore-score:house` (current code), `chore-score:chat-name`, `chore-score:theme`, `chore-score:view` (`flat`/`list`), `chore-score:sound` (`on`/`off`), `chore-score:tour` (`done` once the flat tour is finished or skipped), `chore-score:me:<code>` (which housemate this device is: a roommate id, or `none` for "just looking"), `chore-score:house-cache:<code>` (last copy, shown while the server wakes). The old key `flatmate-ledger:household:v1` is only read to offer uploading pre-sharing data when creating a house (then `chore-score:legacy-imported` is set); never write or rename it.
+- "This is me": each device can say which housemate it is (`readMe`/`saveMe` in `lib/house.ts`, held in `HouseDashboard`). It is never sent to the server. `WhoAmI` asks once there are housemates (after the tour in the flat view; again if the chosen person is removed). Choosing someone also fills the chat name if this device has none. Effects: a red ring and "YOU" tag on your avatar, "Your room" on your door, your jobs on the flat's score card, a MINE filter on the chore board, and the Looks panel opening on you.
 - If a house returns 404 (wrong link, or data lost on a server without Upstash), the app goes back to the start screen and offers to recreate the house from the cached copy.
 
 ### Chores

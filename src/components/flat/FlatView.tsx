@@ -95,6 +95,10 @@ export interface FlatViewProps {
   /** The bedroom doors' look picker, opened on the housemate whose door or avatar was clicked. */
   renderLooks: (personId: string | null) => ReactNode;
   renderChat: (active: boolean, onActivity: (activity: ChatActivity) => void) => ReactNode;
+  /** The housemate using this device, if they've said. */
+  me: Roommate | null;
+  /** The "Which one are you?" card, while it should be asked (shown after the tour). */
+  whoAmI: ReactNode;
   onUseListView: () => void;
 }
 
@@ -171,6 +175,9 @@ function FlatView(props: FlatViewProps) {
   const done = chores.filter((chore) => chore.isComplete).length;
   const percent = chores.length ? Math.round((done / chores.length) * 100) : 0;
   const overdue = chores.filter((chore) => chore.isOverdue).length;
+  const mine = props.me ? chores.filter((chore) => chore.assigneeId === props.me?.id) : [];
+  const mineLeft = mine.filter((chore) => !chore.isComplete).length;
+  const asking = props.whoAmI !== null && tour === null && room === null;
   const badges: Record<RoomId, string> = {
     chores: chores.length - done > 0 ? String(chores.length - done) : "",
     league: "",
@@ -184,7 +191,7 @@ function FlatView(props: FlatViewProps) {
 
   return (
     <section
-      className={`flat-stage${room ? " flat-stage-open" : ""}${tour !== null ? " flat-stage-touring" : ""}`}
+      className={`flat-stage${room ? " flat-stage-open" : ""}${tour !== null || asking ? " flat-stage-touring" : ""}`}
       aria-label="Your flat"
     >
       <SceneErrorBoundary onFallback={props.onUseListView}>
@@ -202,6 +209,7 @@ function FlatView(props: FlatViewProps) {
             darkMode={props.darkMode}
             focus={room ?? tourRoom}
             sheetWidth={wide ? (tour !== null ? TOUR_CARD_SPACE : SIDE_SHEET_WIDTH) : 0}
+            meId={props.me?.id ?? null}
             recentreKey={recentreKey}
             still={still}
             onSelect={openRoom}
@@ -227,6 +235,13 @@ function FlatView(props: FlatViewProps) {
             <span>{done}/{chores.length}</span>
           </div>
           {overdue > 0 && <p className="flat-overdue">{overdue} overdue: look for the red rings</p>}
+          {mine.length > 0 && (
+            <p className="flat-mine">
+              {mineLeft > 0
+                ? `${mineLeft} ${mineLeft === 1 ? "job" : "jobs"} left for you this week`
+                : "Your jobs are done this week ✓"}
+            </p>
+          )}
         </div>
         <div className="flat-tools">
           <button
@@ -258,7 +273,7 @@ function FlatView(props: FlatViewProps) {
       <div className="flat-alerts">{props.alerts}</div>
 
       {/* On phones the tour card takes the buttons' place at the bottom. */}
-      <nav className="flat-rooms" aria-label="Rooms" hidden={(room !== null || tour !== null) && !wide}>
+      <nav className="flat-rooms" aria-label="Rooms" hidden={(room !== null || tour !== null || asking) && !wide}>
         {ROOM_ORDER.map((id) => (
           <button
             key={id}
@@ -282,6 +297,7 @@ function FlatView(props: FlatViewProps) {
       <p className="flat-hint" aria-hidden="true">Drag to move · scroll or pinch to zoom · click anything that grows</p>
 
       {tour !== null && <FlatTour step={tour} onStep={goToTourStep} onClose={endTour} />}
+      {asking && props.whoAmI}
 
       <aside
         ref={sheetRef}

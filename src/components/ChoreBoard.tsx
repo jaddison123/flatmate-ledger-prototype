@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import type { Chore, Roommate } from "../hooks/useHouseholdData";
 import { formatDueDate, formatWeek } from "../lib/week";
 
-type ChoreFilter = "all" | "open" | "done";
+type ChoreFilter = "all" | "mine" | "open" | "done";
 
 export type ChoreWithStatus = Chore & { isComplete: boolean };
 
@@ -13,11 +13,15 @@ interface ChoreBoardProps {
   weekStart: Date;
   weekKey: string;
   todayKey: string;
+  /** The housemate using this device, if known: adds a "Mine" filter. */
+  meId?: string | null;
   onAdd: (chore: Omit<Chore, "id">) => void;
   onToggle: (id: string, complete: boolean) => void;
   onRemove: (id: string) => void;
   onRotate: () => void;
 }
+
+const FILTER_LABELS: Record<ChoreFilter, string> = { all: "EVERYTHING", mine: "MINE", open: "TO DO", done: "DONE" };
 
 /** The chore list with filters, the add form and the rotate button. */
 function ChoreBoard({
@@ -26,6 +30,7 @@ function ChoreBoard({
   weekStart,
   weekKey,
   todayKey,
+  meId = null,
   onAdd,
   onToggle,
   onRemove,
@@ -40,10 +45,14 @@ function ChoreBoard({
 
   const completedCount = chores.filter((chore) => chore.isComplete).length;
   const openCount = chores.length - completedCount;
+  const mineCount = chores.filter((chore) => chore.assigneeId === meId && !chore.isComplete).length;
+  // "Mine" disappears if this device stops being anyone; fall back to everything.
+  const activeFilter = filter === "mine" && !meId ? "all" : filter;
   const visibleChores = chores
     .filter((chore) => {
-      if (filter === "open") return !chore.isComplete;
-      if (filter === "done") return chore.isComplete;
+      if (activeFilter === "mine") return chore.assigneeId === meId;
+      if (activeFilter === "open") return !chore.isComplete;
+      if (activeFilter === "done") return chore.isComplete;
       return true;
     })
     .sort((a, b) => {
@@ -108,16 +117,16 @@ function ChoreBoard({
 
       <div className="board-toolbar">
         <div className="filter-tabs" role="group" aria-label="Filter chores">
-          {(["all", "open", "done"] as const).map((value) => (
+          {(meId ? (["all", "mine", "open", "done"] as const) : (["all", "open", "done"] as const)).map((value) => (
             <button
-              className={filter === value ? "filter-tab active" : "filter-tab"}
+              className={activeFilter === value ? "filter-tab active" : "filter-tab"}
               type="button"
               key={value}
               onClick={() => setFilter(value)}
-              aria-pressed={filter === value}
+              aria-pressed={activeFilter === value}
             >
-              {value === "all" ? "EVERYTHING" : value === "open" ? "TO DO" : "DONE"}
-              <span>{value === "all" ? chores.length : value === "open" ? openCount : completedCount}</span>
+              {FILTER_LABELS[value]}
+              <span>{{ all: chores.length, mine: mineCount, open: openCount, done: completedCount }[value]}</span>
             </button>
           ))}
         </div>
@@ -227,13 +236,23 @@ function ChoreBoard({
         {visibleChores.length === 0 && (
           <div className="empty-board">
             <span className="empty-icon" aria-hidden="true">{chores.length === 0 ? "✳" : "✓"}</span>
-            <h3>{chores.length === 0 ? "A fresh board." : filter === "open" ? "All caught up!" : "Nothing checked off yet."}</h3>
+            <h3>
+              {chores.length === 0
+                ? "A fresh board."
+                : activeFilter === "mine"
+                  ? "Nothing on your name."
+                  : activeFilter === "open"
+                    ? "All caught up!"
+                    : "Nothing checked off yet."}
+            </h3>
             <p>
               {chores.length === 0
                 ? "Add your first household task and share the load."
-                : filter === "open"
-                  ? "You’ve handled everything on the list. Go enjoy it."
-                  : "Tick off a chore when it’s done. We’ll keep score."}
+                : activeFilter === "mine"
+                  ? "No chores are assigned to you. Lucky you, or grab one from the list."
+                  : activeFilter === "open"
+                    ? "You’ve handled everything on the list. Go enjoy it."
+                    : "Tick off a chore when it’s done. We’ll keep score."}
             </p>
             {chores.length === 0 && (
               <button className="add-chore-button" type="button" onClick={() => setIsAddingChore(true)}>

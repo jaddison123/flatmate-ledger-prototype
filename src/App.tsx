@@ -2,11 +2,14 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useHouseholdData, type Household } from "./hooks/useHouseholdData";
 import { useModalFocus } from "./hooks/useModalFocus";
 import {
+  NOT_ME,
   enterHouse,
   houseCodeFromUrl,
   leaveHouse,
   readHouseCache,
+  readMe,
   readSavedHouseCode,
+  saveMe,
 } from "./lib/house";
 import { formatWeek, getWeekStart, toDateInputValue } from "./lib/week";
 import { hasHouseholdContent } from "../shared/household.mjs";
@@ -22,6 +25,7 @@ import FlatView, { hasWebGL } from "./components/flat/FlatView";
 import DecorPicker from "./components/DecorPicker";
 import LookPicker from "./components/LookPicker";
 import HouseLeague from "./components/HouseLeague";
+import WhoAmI from "./components/WhoAmI";
 
 const THEME_KEY = "chore-score:theme";
 const VIEW_KEY = "chore-score:view";
@@ -93,6 +97,22 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
   const [today, setToday] = useState(() => new Date());
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+
+  // Which housemate uses this device ("This is me"). Kept only on this device, per house.
+  const [meSaved, setMeSaved] = useState(() => readMe(houseCode));
+  const me = roommates.find((person) => person.id === meSaved) ?? null;
+  // Ask once there's someone to choose, unless they said "just looking" (or chose someone
+  // who has since been removed: then ask again).
+  const askWhoAmI = roommates.length > 0 && me === null && meSaved !== NOT_ME;
+
+  function chooseMe(id: string | null) {
+    const value = id ?? NOT_ME;
+    saveMe(houseCode, value);
+    setMeSaved(value);
+    const person = roommates.find((roommate) => roommate.id === id);
+    // Fill in the chat name too, unless one was already chosen on this device.
+    if (person && !chatUsername.trim()) setChatUsername(person.name);
+  }
 
   // Shown in the hero headline; falls back to the original tagline until a name is set.
   const houseName = householdName.trim();
@@ -187,6 +207,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
       weekStart={weekStart}
       weekKey={weekKey}
       todayKey={todayKey}
+      meId={me?.id ?? null}
       onAdd={addChore}
       onToggle={(id, complete) => updateChore(id, { completed: complete, completedWeek: weekKey })}
       onRemove={removeChore}
@@ -202,6 +223,8 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
       houseCode={houseCode}
       householdName={householdName}
       roommates={roommates}
+      meId={me?.id ?? null}
+      onChooseMe={chooseMe}
       showRename={showRename}
       onRename={setHouseholdName}
       onAddRoommate={(name) => addRoommate({ name })}
@@ -239,7 +262,11 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
               ),
               decor: <DecorPicker decor={decor} onChange={setDecor} />,
             }}
-            renderLooks={(personId) => <LookPicker roommates={roommates} personId={personId} onChange={setLook} />}
+            renderLooks={(personId) => (
+              <LookPicker roommates={roommates} personId={personId ?? me?.id ?? null} onChange={setLook} />
+            )}
+            me={me}
+            whoAmI={askWhoAmI ? <WhoAmI roommates={roommates} onChoose={chooseMe} variant="flat" /> : null}
             renderChat={(active, onActivity) => (
               <HomeChat
                 houseCode={houseCode}
@@ -356,6 +383,8 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
         </section>
 
         {alerts}
+
+        {askWhoAmI && <WhoAmI roommates={roommates} onChoose={chooseMe} variant="list" />}
 
         {choreBoard}
 
