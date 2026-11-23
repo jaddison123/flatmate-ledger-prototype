@@ -1,6 +1,8 @@
 // Colours for the 3D flat. Accent colours come from the page's CSS variables (--red, --green,
 // --paper, --ink...) so the flat matches the rest of the app in light and dark mode; the
-// furniture colours are fixed per mode.
+// furniture colours are fixed per mode, apart from the paint, floor and fabric the house picked
+// in the decor picker (withDecor).
+import type { Decor } from "../../hooks/useHouseholdData";
 
 export interface ScenePalette {
   night: boolean;
@@ -67,4 +69,39 @@ export function readPalette(night: boolean): ScenePalette {
     sky: night ? "#2a3050" : "#ffffff",
     ground: night ? "#1a1a1e" : "#bdb4a8",
   };
+}
+
+type Shade = { day: string; night: string };
+
+const WALLS: Record<Exclude<Decor["walls"], "classic">, { wall: Shade; cap: Shade }> = {
+  sage: { wall: { day: "#dfe6d6", night: "#47524a" }, cap: { day: "#c8d2bd", night: "#58655b" } },
+  blush: { wall: { day: "#f1dcd6", night: "#5a4549" }, cap: { day: "#dfc3ba", night: "#6d5459" } },
+  navy: { wall: { day: "#c9d3e3", night: "#353f55" }, cap: { day: "#b0bdd1", night: "#46516a" } },
+};
+
+const FLOORS: Record<Exclude<Decor["floor"], "oak">, { living: Shade; hall: Shade }> = {
+  walnut: { living: { day: "#8a5f3e", night: "#4a3427" }, hall: { day: "#b49a80", night: "#463c35" } },
+  grey: { living: { day: "#b9b6b0", night: "#4e4f52" }, hall: { day: "#d4d2ce", night: "#47484b" } },
+};
+
+const FABRICS: Record<"mustard" | "grey", Shade> = {
+  mustard: { day: "#d9a53a", night: "#b88a35" },
+  grey: { day: "#8c8f96", night: "#6a6d74" },
+};
+
+/** The palette with the house's chosen wall paint, floorboards and sofa fabric applied. */
+export function withDecor(p: ScenePalette, decor: Decor): ScenePalette {
+  const pick = (shade: Shade) => (p.night ? shade.night : shade.day);
+  const next = { ...p };
+  if (decor.walls !== "classic") {
+    next.wall = pick(WALLS[decor.walls].wall);
+    next.wallCap = pick(WALLS[decor.walls].cap);
+  }
+  if (decor.floor !== "oak") {
+    next.floorLiving = pick(FLOORS[decor.floor].living);
+    next.floorHall = pick(FLOORS[decor.floor].hall);
+  }
+  if (decor.upholstery === "green") next.fabric = p.green;
+  else if (decor.upholstery !== "red") next.fabric = pick(FABRICS[decor.upholstery]);
+  return next;
 }

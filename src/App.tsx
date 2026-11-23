@@ -19,6 +19,8 @@ import Notes from "./components/Notes";
 import TopBar from "./components/TopBar";
 // FlatView is small; it lazy-loads the three.js scene itself.
 import FlatView, { hasWebGL } from "./components/flat/FlatView";
+import DecorPicker from "./components/DecorPicker";
+import HouseLeague from "./components/HouseLeague";
 
 const THEME_KEY = "chore-score:theme";
 const VIEW_KEY = "chore-score:view";
@@ -69,6 +71,8 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
     chatUsername,
     householdName,
     setHouseholdName,
+    decor,
+    setDecor,
     isLoaded,
     status,
     syncError,
@@ -214,12 +218,14 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
             expenses={expenses}
             notes={notes}
             householdName={householdName}
+            decor={decor}
             status={status}
             darkMode={darkMode}
             weekLabel={`WEEK OF ${formatWeek(weekStart).toUpperCase()} — ${formatWeek(weekEnd).toUpperCase()}`}
             alerts={alerts}
             panels={{
               chores: choreBoard,
+              league: <HouseLeague roommates={roommates} chores={choresWithStatus} />,
               notes: notesBoard,
               bills: billTracker,
               house: (
@@ -229,6 +235,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
                   {houseSettings(true)}
                 </section>
               ),
+              decor: <DecorPicker decor={decor} onChange={setDecor} />,
             }}
             renderChat={(active, onActivity) => (
               <HomeChat

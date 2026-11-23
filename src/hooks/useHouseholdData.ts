@@ -1,4 +1,4 @@
-// A house's shared data (housemates, chores, bills, notes, name), kept in sync with the server.
+// A house's shared data (housemates, chores, bills, notes, name, flat decor), kept in sync with the server.
 //
 // The server is the source of truth. Each change is sent as an "action"; it shows on screen at
 // once (an optimistic copy) and is replaced by the server's version when that arrives over the
@@ -12,6 +12,8 @@ import {
   normalizeHousehold,
   type ChoreUpdates,
   type Chore,
+  type Decor,
+  type DecorSlot,
   type Expense,
   type Household,
   type HouseholdAction,
@@ -25,7 +27,7 @@ import {
   writeHouseCache,
 } from "../lib/house";
 
-export type { Chore, Expense, Household, Note, Roommate } from "../../shared/household.mjs";
+export type { Chore, Decor, DecorSlot, Expense, Household, Note, Roommate } from "../../shared/household.mjs";
 
 /** connecting: first load; live: in sync; reconnecting: connection lost; missing: no such house. */
 export type SyncStatus = "connecting" | "live" | "reconnecting" | "missing";
@@ -223,6 +225,10 @@ export function useHouseholdData(houseCode: string) {
     },
     setHouseholdName(name: string) {
       dispatch({ type: "setHouseholdName", name });
+    },
+    /** Swaps one piece of the 3D flat's furniture for everyone in the house. */
+    setDecor<S extends DecorSlot>(slot: S, style: Decor[S]) {
+      dispatch({ type: "setDecor", slot, style } as HouseholdAction);
     },
   };
 }

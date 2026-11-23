@@ -14,7 +14,7 @@
 export type Vec3 = [number, number, number];
 
 /** Each feature lives somewhere in the flat. */
-export type RoomId = "chores" | "notes" | "bills" | "chat" | "house";
+export type RoomId = "chores" | "league" | "notes" | "bills" | "chat" | "house" | "decor";
 
 export interface RoomInfo {
   label: string;
@@ -28,14 +28,17 @@ export interface RoomInfo {
 }
 
 export const ROOMS: Record<RoomId, RoomInfo> = {
-  chores: { label: "Chores", place: "Hallway whiteboard", icon: "✳", focus: [2.9, 1.3, 1.9], zoom: 2.4 },
+  chores: { label: "Chores", place: "Landing whiteboard", icon: "✳", focus: [3.9, 1.3, -2.1], zoom: 2.4 },
+  league: { label: "League", place: "Living room TV", icon: "♛", focus: [-6.2, 1, 2], zoom: 2.3 },
   notes: { label: "Notes", place: "Kitchen fridge", icon: "✎", focus: [-6, 1.2, -2.3], zoom: 2.3 },
   bills: { label: "Bills", place: "Kitchen table", icon: "£", focus: [-3.2, 0.8, -2.2], zoom: 2.3 },
   chat: { label: "Chat", place: "Living room sofa", icon: "💬", focus: [-4, 0.8, 2], zoom: 1.9 },
   house: { label: "House", place: "Front door", icon: "⌂", focus: [4.5, 1.2, 3.5], zoom: 1.9 },
+  // Zoomed out on the whole flat, so you can watch the furniture change as you pick.
+  decor: { label: "Decor", place: "Bathroom mirror", icon: "✦", focus: [0.9, 0.3, 1.6], zoom: 0.8 },
 };
 
-export const ROOM_ORDER: RoomId[] = ["chores", "notes", "bills", "chat", "house"];
+export const ROOM_ORDER: RoomId[] = ["chores", "league", "notes", "bills", "chat", "house", "decor"];
 
 /** Where a chore's mess appears, guessed from its title. */
 export type MessZone = "kitchen" | "bathroom" | "laundry" | "bins" | "living" | "general";
@@ -57,7 +60,8 @@ export function messZone(title: string): MessZone {
 export const MESS_SPOTS: Record<MessZone, Vec3[]> = {
   kitchen: [[-3.9, 0.98, -4.6], [-2.9, 0.98, -4.6], [-4.9, 0.98, -4.6], [-5, 0, -3.3]],
   bathroom: [[0.4, 0.01, -3.3], [1.8, 0.01, -2.4], [0, 0.01, -2.2], [2.2, 0.01, -3.5]],
-  laundry: [[4.2, 0, -3.2], [5.6, 0, -2.6], [4.8, 0, -1.8], [6.3, 0, -3.6]],
+  // Kept clear of the whiteboard on the landing (WHITEBOARD_SPOT).
+  laundry: [[4.6, 0, -3.9], [5.6, 0, -2.6], [6.2, 0, -1.9], [6.3, 0, -3.6]],
   bins: [[5.6, 0, 5.95], [6.2, 0, 4.2], [5.6, 0, 3.4], [6.5, 0, 3.1]],
   living: [[-2, 0, 0.9], [-4.1, 0, 3.6], [-1.6, 0, 2.6], [-5.9, 0, 0.6]],
   general: [[2, 0, 4.4], [4, 0, 0.2], [5.8, 0, 1.6], [2.2, 0, -0.4]],
@@ -71,3 +75,6 @@ export const AVATAR_SPOTS: Vec3[] = [
 
 /** Bedroom doors along the back wall of the landing. */
 export const MAX_BEDROOM_DOORS = 4;
+
+/** The chore whiteboard's easel, on the landing outside the bedrooms. */
+export const WHITEBOARD_SPOT: Vec3 = [3.9, 0, -2.1];

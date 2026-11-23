@@ -3,7 +3,7 @@
 // The buttons are the keyboard/screen-reader way in; clicking things in the scene is a shortcut.
 import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ChatActivity } from "../HomeChat";
-import type { Expense, Note, Roommate, SyncStatus } from "../../hooks/useHouseholdData";
+import type { Decor, Expense, Note, Roommate, SyncStatus } from "../../hooks/useHouseholdData";
 import { useModalFocus } from "../../hooks/useModalFocus";
 import { playSound, setSoundEnabled } from "../../lib/sfx";
 import type { SceneChore } from "./liveParts";
@@ -81,6 +81,7 @@ export interface FlatViewProps {
   expenses: Expense[];
   notes: Note[];
   householdName: string;
+  decor: Decor;
   status: SyncStatus;
   darkMode: boolean;
   weekLabel: string;
@@ -140,10 +141,12 @@ function FlatView(props: FlatViewProps) {
   const overdue = chores.filter((chore) => chore.isOverdue).length;
   const badges: Record<RoomId, string> = {
     chores: chores.length - done > 0 ? String(chores.length - done) : "",
+    league: "",
     notes: notes.length > 0 ? String(notes.length) : "",
     bills: expenses.length > 0 ? String(expenses.length) : "",
     chat: chat.unread > 0 ? String(chat.unread) : "",
     house: "",
+    decor: "",
   };
 
   return (
@@ -156,6 +159,7 @@ function FlatView(props: FlatViewProps) {
             expenses={expenses}
             notes={notes}
             householdName={props.householdName}
+            decor={props.decor}
             status={props.status}
             chat={chat}
             recentMessage={recent}

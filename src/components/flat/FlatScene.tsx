@@ -1,18 +1,18 @@
 // The 3D flat (loaded lazily: three.js is large, and the start screen does not need it).
 // A fixed isometric camera looks at a cut-away flat; clicking things opens their feature.
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { MOUSE, TOUCH, Vector3, type OrthographicCamera } from "three";
 import type { ChatActivity } from "../HomeChat";
-import type { Expense, Note, Roommate, SyncStatus } from "../../hooks/useHouseholdData";
+import type { Decor, Expense, Note, Roommate, SyncStatus } from "../../hooks/useHouseholdData";
 import { playSound } from "../../lib/sfx";
 import { Bathroom, FlatShell, Hallway, Kitchen, LivingRoom } from "./furniture";
 import {
-  Avatars, BedroomDoors, BillsTable, Burst, ChatCorner, FrontDoor, Fridge, Mess, Television,
+  Avatars, BedroomDoors, BillsTable, Burst, ChatCorner, FrontDoor, Fridge, Mess, Mirror, Television,
   WheelieBin, Whiteboard, layoutMess, type SceneChore,
 } from "./liveParts";
-import { readPalette, type ScenePalette } from "./palette";
+import { readPalette, withDecor, type ScenePalette } from "./palette";
 import { ROOMS, type RoomId, type Vec3 } from "./rooms";
 
 export interface FlatSceneProps {
@@ -21,6 +21,7 @@ export interface FlatSceneProps {
   expenses: Expense[];
   notes: Note[];
   householdName: string;
+  decor: Decor;
   status: SyncStatus;
   chat: ChatActivity;
   recentMessage: ChatActivity["latest"];
@@ -155,7 +156,7 @@ interface BurstItem {
 }
 
 function Flat(props: FlatSceneProps & { p: ScenePalette }) {
-  const { p, roommates, chores, still, onSelect } = props;
+  const { p, roommates, chores, decor, still, onSelect } = props;
 
   // Spot of each open chore's mess, remembered so a just-finished chore can sparkle there.
   const messSpots = useRef(new Map<string, Vec3>());
@@ -195,24 +196,23 @@ function Flat(props: FlatSceneProps & { p: ScenePalette }) {
     previousAssignees.current = assignees;
   }, [chores, still]);
 
-  const done = chores.filter((chore) => chore.isComplete).length;
-
   return (
     <>
       <Lights p={p} />
       <FlatShell p={p} />
-      <Kitchen p={p} />
-      <Bathroom p={p} />
-      <LivingRoom p={p} />
+      <Kitchen p={p} style={decor.kitchen} />
+      <Bathroom p={p} bath={decor.bath} />
+      <LivingRoom p={p} decor={decor} />
       <Hallway p={p} />
       <WheelieBin p={p} />
 
-      <Fridge p={p} notes={props.notes} still={still} onSelect={onSelect} />
-      <BillsTable p={p} expenses={props.expenses} roommates={roommates} still={still} onSelect={onSelect} />
-      <ChatCorner p={p} chat={props.chat} recent={props.recentMessage} still={still} onSelect={onSelect} />
-      <Television p={p} done={done} total={chores.length} onSelect={onSelect} />
-      <Whiteboard p={p} chores={chores} roommates={roommates} shuffleKey={shuffleKey} still={still} onSelect={onSelect} />
-      <FrontDoor p={p} householdName={props.householdName} status={props.status} still={still} onSelect={onSelect} />
+      <Fridge p={p} style={decor.fridge} notes={props.notes} still={still} onSelect={onSelect} />
+      <Mirror p={p} style={decor.mirror} still={still} onSelect={onSelect} />
+      <BillsTable p={p} style={decor.table} expenses={props.expenses} roommates={roommates} still={still} onSelect={onSelect} />
+      <ChatCorner p={p} sofa={decor.sofa} chat={props.chat} recent={props.recentMessage} still={still} onSelect={onSelect} />
+      <Television p={p} style={decor.tv} roommates={roommates} chores={chores} onSelect={onSelect} />
+      <Whiteboard p={p} style={decor.board} chores={chores} roommates={roommates} shuffleKey={shuffleKey} still={still} onSelect={onSelect} />
+      <FrontDoor p={p} style={decor.frontDoor} householdName={props.householdName} status={props.status} still={still} onSelect={onSelect} />
       <BedroomDoors p={p} roommates={roommates} onSelect={onSelect} />
       <Avatars roommates={roommates} hopKey={shuffleKey} still={still} onSelect={onSelect} />
       <Mess p={p} chores={chores} roommates={roommates} still={still} onSelect={onSelect} />
@@ -233,6 +233,8 @@ function FlatScene(props: FlatSceneProps) {
   // Colours follow the page's CSS variables, which change after the theme class is applied.
   const [palette, setPalette] = useState(() => readPalette(props.darkMode));
   useLayoutEffect(() => setPalette(readPalette(props.darkMode)), [props.darkMode]);
+  // The house's chosen paint, floor and sofa fabric replace the matching theme colours.
+  const p = useMemo(() => withDecor(palette, props.decor), [palette, props.decor]);
 
   return (
     <Canvas
@@ -245,7 +247,7 @@ function FlatScene(props: FlatSceneProps) {
       gl={{ antialias: true, alpha: true }}
     >
       <CameraRig focus={props.focus} sheetWidth={props.sheetWidth} recentreKey={props.recentreKey} still={props.still} />
-      <Flat {...props} p={palette} />
+      <Flat {...props} p={p} />
     </Canvas>
   );
 }

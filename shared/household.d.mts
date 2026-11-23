@@ -30,6 +30,27 @@ export interface Note {
   createdAt: string;
 }
 
+/** The 3D flat's furniture choices: one style id per slot (see DECOR_OPTIONS). */
+export interface Decor {
+  walls: "classic" | "sage" | "blush" | "navy";
+  floor: "oak" | "walnut" | "grey";
+  sofa: "classic" | "corner" | "beanbags";
+  upholstery: "red" | "green" | "mustard" | "grey";
+  rug: "rectangle" | "round" | "striped" | "none";
+  plant: "leafy" | "cactus" | "palm";
+  lamp: "floor" | "arc" | "fairy";
+  kitchen: "white" | "wood" | "mint";
+  table: "wood" | "round";
+  bath: "bath" | "shower";
+  fridge: "classic" | "retro" | "steel";
+  tv: "flat" | "crt" | "projector";
+  board: "whiteboard" | "chalkboard" | "cork";
+  frontDoor: "red" | "navy" | "green";
+  mirror: "gilt" | "round" | "cabinet";
+}
+
+export type DecorSlot = keyof Decor;
+
 /** Everything shared by a house. */
 export interface Household {
   roommates: Roommate[];
@@ -38,6 +59,8 @@ export interface Household {
   notes: Note[];
   /** Display name of the house, shown in the hero and top bar. Empty = default. */
   householdName: string;
+  /** Furniture styles in the 3D flat. Missing in older saved houses: filled with defaults. */
+  decor: Decor;
 }
 
 export type ChoreUpdates = Partial<Omit<Chore, "id">>;
@@ -53,7 +76,8 @@ export type HouseholdAction =
   | { type: "removeExpense"; id: string }
   | { type: "addNote"; note: Note }
   | { type: "removeNote"; id: string }
-  | { type: "setHouseholdName"; name: string };
+  | { type: "setHouseholdName"; name: string }
+  | { [S in DecorSlot]: { type: "setDecor"; slot: S; style: Decor[S] } }[DecorSlot];
 
 export declare const LIMITS: {
   roommates: number;
@@ -69,6 +93,8 @@ export declare const LIMITS: {
   maxAmount: number;
 };
 
+export declare const DECOR_OPTIONS: { [S in DecorSlot]: readonly Decor[S][] };
+export declare function defaultDecor(): Decor;
 export declare function emptyHousehold(): Household;
 export declare function normalizeHousehold(value: unknown): Household | null;
 export declare function hasHouseholdContent(household: Household): boolean;

@@ -1,18 +1,19 @@
 // The parts of the flat that show the house's data and open a feature when clicked:
-// fridge (notes), kitchen table (bills), sofa and phone (chat), whiteboard and TV (chores),
-// front door and bedroom doors (house), housemates' avatars, and the mess left by open chores.
+// fridge (notes), kitchen table (bills), sofa and phone (chat), whiteboard (chores), TV (league),
+// front door and bedroom doors (house), bathroom mirror (decor), housemates' avatars, and the mess left by open chores.
 import { useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useCursor } from "@react-three/drei";
 import type { Group, Mesh, MeshStandardMaterial, PointLight } from "three";
 import type { ChatActivity } from "../HomeChat";
-import type { Chore, Expense, Note, Roommate, SyncStatus } from "../../hooks/useHouseholdData";
+import type { Chore, Decor, Expense, Note, Roommate, SyncStatus } from "../../hooks/useHouseholdData";
 import { computeBalances, formatMoney } from "../../lib/bills";
+import { computeLeague, starOfTheWeek } from "../../lib/league";
 import { initial, nameColour } from "../../lib/nameColour";
 import { Block, Cyl, Mat } from "./furniture";
 import { Overlay } from "./Overlay";
 import type { ScenePalette } from "./palette";
-import { AVATAR_SPOTS, MAX_BEDROOM_DOORS, MESS_SPOTS, messZone, type MessZone, type RoomId, type Vec3 } from "./rooms";
+import { AVATAR_SPOTS, MAX_BEDROOM_DOORS, MESS_SPOTS, WHITEBOARD_SPOT, messZone, type MessZone, type RoomId, type Vec3 } from "./rooms";
 import { BODY_FONT, HEADING_FONT, fitText, useCanvasTexture } from "./textures";
 
 export type SceneChore = Chore & { isComplete: boolean; isOverdue: boolean };
@@ -94,7 +95,46 @@ function usePulse(ref: RefObject<Mesh | null>, on: boolean, still: boolean, base
 
 // ---------- Notes: the fridge ----------
 
-export function Fridge({ p, notes, still, onSelect }: { p: ScenePalette; notes: Note[]; still: boolean; onSelect: Select }) {
+/** The fridge's body. Every style keeps the same box and front (+x) face, where the magnets go. */
+function FridgeBody({ p, style }: { p: ScenePalette; style: Decor["fridge"] }) {
+  if (style === "steel") {
+    // American-style: two tall doors side by side, long bar handles.
+    return (
+      <>
+        <Block size={[0.85, 1.95, 0.85]} at={[0, 0, 0]} color={p.metal} />
+        <Block size={[0.02, 1.85, 0.02]} at={[0.43, 0.05, 0]} color={p.dark} shadow={false} />
+        <Block size={[0.05, 0.9, 0.04]} at={[0.46, 0.6, -0.06]} color={p.white} shadow={false} />
+        <Block size={[0.05, 0.9, 0.04]} at={[0.46, 0.6, 0.06]} color={p.white} shadow={false} />
+      </>
+    );
+  }
+  if (style === "retro") {
+    // Cream with a chrome trim strip, a chunky lever handle and a little badge.
+    const cream = p.night ? "#a8997a" : "#f1dfb8";
+    return (
+      <>
+        <Block size={[0.85, 1.85, 0.85]} at={[0, 0, 0]} color={cream} />
+        <Block size={[0.8, 0.1, 0.8]} at={[0, 1.85, 0]} color={cream} />
+        <Block size={[0.02, 0.05, 0.84]} at={[0.43, 1.42, 0]} color={p.metal} shadow={false} />
+        <Block size={[0.08, 0.32, 0.08]} at={[0.46, 0.95, 0.33]} color={p.metal} />
+        <Block size={[0.02, 0.06, 0.2]} at={[0.435, 1.6, 0]} color={p.red} shadow={false} />
+      </>
+    );
+  }
+  return (
+    <>
+      <Block size={[0.85, 1.95, 0.85]} at={[0, 0, 0]} color={p.white} />
+      {/* Split between freezer and fridge doors, and two handles. */}
+      <Block size={[0.02, 0.03, 0.8]} at={[0.43, 1.35, 0]} color={p.wallCap} shadow={false} />
+      <Block size={[0.05, 0.3, 0.05]} at={[0.45, 1.5, 0.3]} color={p.metal} shadow={false} />
+      <Block size={[0.05, 0.45, 0.05]} at={[0.45, 0.75, 0.3]} color={p.metal} shadow={false} />
+    </>
+  );
+}
+
+export function Fridge({
+  p, style, notes, still, onSelect,
+}: { p: ScenePalette; style: Decor["fridge"]; notes: Note[]; still: boolean; onSelect: Select }) {
   const newest = notes[0];
   const isFresh = newest ? Date.now() - new Date(newest.createdAt).getTime() < 2 * DAY_MS : false;
   const freshRef = useRef<Mesh>(null);
@@ -112,11 +152,7 @@ export function Fridge({ p, notes, still, onSelect }: { p: ScenePalette; notes: 
         </>
       }
     >
-      <Block size={[0.85, 1.95, 0.85]} at={[0, 0, 0]} color={p.white} />
-      {/* Split between freezer and fridge doors, and two handles. */}
-      <Block size={[0.02, 0.03, 0.8]} at={[0.43, 1.35, 0]} color={p.wallCap} shadow={false} />
-      <Block size={[0.05, 0.3, 0.05]} at={[0.45, 1.5, 0.3]} color={p.metal} shadow={false} />
-      <Block size={[0.05, 0.45, 0.05]} at={[0.45, 0.75, 0.3]} color={p.metal} shadow={false} />
+      <FridgeBody p={p} style={style} />
       {/* One magnet note per house note (up to 9), newest top-left. */}
       {notes.slice(0, 9).map((note, index) => {
         const row = Math.floor(index / 3);
@@ -138,13 +174,82 @@ export function Fridge({ p, notes, still, onSelect }: { p: ScenePalette; notes: 
   );
 }
 
+// ---------- Decor: the bathroom mirror ----------
+
+/** A mirror above the basin on the bathroom's back wall; opens the decor picker. */
+export function Mirror({
+  p, style, still, onSelect,
+}: { p: ScenePalette; style: Decor["mirror"]; still: boolean; onSelect: Select }) {
+  const glassRef = useRef<Mesh>(null);
+  // A slow shimmer hints that it does something (steady glow with reduced motion).
+  usePulse(glassRef, true, still, 0.15, 0.4);
+  const glass = <Mat color={p.night ? "#9fb4c4" : "#dbeef5"} glow={0.15} />;
+  const glint = (at: Vec3, length: number) => (
+    <Block size={[0.06, length, 0.01]} at={at} rotation={[0, 0, -0.6]} color="#ffffff" glow={0.6} shadow={false} />
+  );
+
+  let body: ReactNode;
+  if (style === "round") {
+    // Wooden ring with round glass (cylinders turned to face the room).
+    body = (
+      <>
+        <mesh position={[0, 1.45, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[0.4, 0.4, 0.05, 18]} />
+          <Mat color={p.wood} />
+        </mesh>
+        <mesh ref={glassRef} position={[0, 1.45, 0.03]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.33, 0.33, 0.02, 18]} />
+          {glass}
+        </mesh>
+        {glint([-0.08, 1.27, 0.045], 0.38)}
+      </>
+    );
+  } else if (style === "cabinet") {
+    // A white wall cabinet whose door is the mirror.
+    body = (
+      <>
+        <Block size={[0.7, 0.75, 0.2]} at={[0, 1.05, 0.06]} color={p.white} />
+        <mesh ref={glassRef} position={[0, 1.425, 0.17]}>
+          <boxGeometry args={[0.6, 0.65, 0.02]} />
+          {glass}
+        </mesh>
+        <Block size={[0.03, 0.14, 0.03]} at={[0.25, 1.35, 0.19]} color={p.metal} shadow={false} />
+        {glint([-0.1, 1.2, 0.185], 0.48)}
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <Block size={[0.64, 0.82, 0.05]} at={[0, 1.02, 0]} color={COIN_GOLD} />
+        <mesh ref={glassRef} position={[0, 1.43, 0.035]}>
+          <boxGeometry args={[0.52, 0.7, 0.02]} />
+          {glass}
+        </mesh>
+        {glint([-0.08, 1.18, 0.05], 0.5)}
+      </>
+    );
+  }
+
+  return (
+    <Hotspot
+      room="decor"
+      at={[1.7, 0, -4.95]}
+      onSelect={onSelect}
+      tagHeight={2.2}
+      label={<><b>Mirror</b><span className="flat-tag-sub">Redecorate the flat</span></>}
+    >
+      {body}
+    </Hotspot>
+  );
+}
+
 // ---------- Bills: the kitchen table ----------
 
 const COIN_GOLD = "#e8b93a";
 
 export function BillsTable({
-  p, expenses, roommates, still, onSelect,
-}: { p: ScenePalette; expenses: Expense[]; roommates: Roommate[]; still: boolean; onSelect: Select }) {
+  p, style, expenses, roommates, still, onSelect,
+}: { p: ScenePalette; style: Decor["table"]; expenses: Expense[]; roommates: Roommate[]; still: boolean; onSelect: Select }) {
   const balances = useMemo(() => computeBalances(expenses), [expenses]);
   const total = expenses.reduce((sum, expense) => sum + Math.round(expense.amount * 100), 0);
   const newestDate = expenses.reduce((latest, expense) => (expense.date > latest ? expense.date : latest), "");
@@ -173,11 +278,21 @@ export function BillsTable({
         </>
       }
     >
-      {/* Table and two chairs. */}
-      <Block size={[1.8, 0.08, 1.1]} at={[0, 0.72, 0]} color={p.wood} />
-      {[[-0.8, -0.45], [0.8, -0.45], [-0.8, 0.45], [0.8, 0.45]].map(([x, z]) => (
-        <Block key={`${x}${z}`} size={[0.08, 0.72, 0.08]} at={[x, 0, z]} color={p.woodDark} />
-      ))}
+      {/* Table (same height either way, so the envelopes and coins sit on it) and two chairs. */}
+      {style === "round" ? (
+        <>
+          <Cyl args={[0.85, 0.85, 0.08, 12]} at={[0, 0.72, 0]} color={p.wood} />
+          <Cyl args={[0.08, 0.1, 0.72, 6]} at={[0, 0, 0]} color={p.woodDark} />
+          <Cyl args={[0.34, 0.4, 0.05, 8]} at={[0, 0, 0]} color={p.woodDark} />
+        </>
+      ) : (
+        <>
+          <Block size={[1.8, 0.08, 1.1]} at={[0, 0.72, 0]} color={p.wood} />
+          {[[-0.8, -0.45], [0.8, -0.45], [-0.8, 0.45], [0.8, 0.45]].map(([x, z]) => (
+            <Block key={`${x}${z}`} size={[0.08, 0.72, 0.08]} at={[x, 0, z]} color={p.woodDark} />
+          ))}
+        </>
+      )}
       {[-0.85, 0.85].map((z) => (
         <group key={z}>
           <Block size={[0.45, 0.06, 0.45]} at={[0.3, 0.45, z]} color={p.woodDark} />
@@ -224,10 +339,49 @@ export function BillsTable({
 
 // ---------- Chat: the sofa, coffee table and phone ----------
 
+/** The seating, facing the TV (towards -x). The coffee table and phone stay put whatever the style. */
+function Sofa({ p, style }: { p: ScenePalette; style: Decor["sofa"] }) {
+  if (style === "beanbags") {
+    return (
+      <>
+        {[[0.05, -0.9], [0.2, 0.25], [-0.05, 1.35]].map(([x, z], index) => (
+          <mesh key={index} position={[x, 0.26, z]} scale={[1, 0.62, 1]} castShadow receiveShadow>
+            <icosahedronGeometry args={[0.45, 1]} />
+            <Mat color={p.fabric} />
+          </mesh>
+        ))}
+      </>
+    );
+  }
+  const corner = style === "corner";
+  return (
+    <>
+      <Block size={[0.95, 0.42, 2.4]} at={[0, 0, 0]} color={p.fabric} />
+      <Block size={[0.28, 0.95, 2.4]} at={[0.4, 0, 0]} color={p.fabric} />
+      <Block size={[0.95, 0.62, 0.25]} at={[0, 0, 1.2]} color={p.fabric} />
+      <Block size={[0.7, 0.12, 1.0]} at={[-0.1, 0.42, -0.55]} color={p.white} />
+      <Block size={[0.7, 0.12, 1.0]} at={[-0.1, 0.42, 0.55]} color={p.white} />
+      {corner ? (
+        <>
+          {/* The L wraps round the coffee table's far end (towards the kitchen). */}
+          <Block size={[1.4, 0.42, 0.95]} at={[-0.95, 0, -1.65]} color={p.fabric} />
+          <Block size={[0.28, 0.95, 1.0]} at={[0.4, 0, -1.7]} color={p.fabric} />
+          <Block size={[2.0, 0.95, 0.28]} at={[-0.6, 0, -2.2]} color={p.fabric} />
+          <Block size={[0.25, 0.62, 0.95]} at={[-1.75, 0, -1.65]} color={p.fabric} />
+          <Block size={[1.0, 0.12, 0.7]} at={[-0.95, 0.42, -1.6]} color={p.white} />
+        </>
+      ) : (
+        <Block size={[0.95, 0.62, 0.25]} at={[0, 0, -1.2]} color={p.fabric} />
+      )}
+    </>
+  );
+}
+
 export function ChatCorner({
-  p, chat, recent, still, onSelect,
+  p, sofa, chat, recent, still, onSelect,
 }: {
   p: ScenePalette;
+  sofa: Decor["sofa"];
   chat: ChatActivity;
   /** A message from someone else that just arrived (shown in a bubble for a few seconds). */
   recent: ChatActivity["latest"];
@@ -248,13 +402,7 @@ export function ChatCorner({
       tagHeight={1.6}
       label={<><b>House chat</b>{chat.unread > 0 ? ` · ${chat.unread} unread` : ""}</>}
     >
-      {/* Sofa facing the TV (towards -x). */}
-      <Block size={[0.95, 0.42, 2.4]} at={[0, 0, 0]} color={p.fabric} />
-      <Block size={[0.28, 0.95, 2.4]} at={[0.4, 0, 0]} color={p.fabric} />
-      <Block size={[0.95, 0.62, 0.25]} at={[0, 0, -1.2]} color={p.fabric} />
-      <Block size={[0.95, 0.62, 0.25]} at={[0, 0, 1.2]} color={p.fabric} />
-      <Block size={[0.7, 0.12, 1.0]} at={[-0.1, 0.42, -0.55]} color={p.white} />
-      <Block size={[0.7, 0.12, 1.0]} at={[-0.1, 0.42, 0.55]} color={p.white} />
+      <Sofa p={p} style={sofa} />
       {/* Coffee table with the phone on it. */}
       <Block size={[0.75, 0.06, 1.2]} at={[-1.5, 0.36, 0]} color={p.wood} />
       {[[-0.3, -0.5], [0.3, -0.5], [-0.3, 0.5], [0.3, 0.5]].map(([x, z]) => (
@@ -292,48 +440,118 @@ export function ChatCorner({
   );
 }
 
-// ---------- Chores: the whiteboard and the TV ----------
+// ---------- Chores: the whiteboard on the bedroom landing ----------
+
+/** What the chore board stands on: an easel, an A-frame, or a pair of metal poles. */
+function BoardStand({ p, style }: { p: ScenePalette; style: Decor["board"] }) {
+  if (style === "chalkboard") {
+    return (
+      <>
+        {[-0.78, 0.78].map((x) => (
+          <group key={x}>
+            <Block size={[0.09, 2.0, 0.09]} at={[x, 0, 0]} rotation={[-0.12, 0, 0]} color={p.woodDark} />
+            <Block size={[0.07, 1.85, 0.07]} at={[x, 0, -0.45]} rotation={[0.25, 0, 0]} color={p.woodDark} />
+          </group>
+        ))}
+        <Block size={[1.6, 0.05, 0.05]} at={[0, 0.5, -0.3]} color={p.woodDark} />
+      </>
+    );
+  }
+  if (style === "cork") {
+    return (
+      <>
+        {[-0.75, 0.75].map((x) => (
+          <group key={x}>
+            <Cyl args={[0.03, 0.03, 1.95, 6]} at={[x, 0, -0.02]} color={p.metal} />
+            <Block size={[0.08, 0.04, 0.6]} at={[x, 0, -0.02]} color={p.metal} />
+          </group>
+        ))}
+      </>
+    );
+  }
+  return (
+    <>
+      {/* Easel legs. */}
+      <Block size={[0.07, 1.95, 0.07]} at={[-0.7, 0, 0]} rotation={[-0.08, 0, 0]} color={p.woodDark} />
+      <Block size={[0.07, 1.95, 0.07]} at={[0.7, 0, 0]} rotation={[-0.08, 0, 0]} color={p.woodDark} />
+      <Block size={[0.07, 1.8, 0.07]} at={[0, 0, -0.35]} rotation={[0.2, 0, 0]} color={p.woodDark} />
+    </>
+  );
+}
+
+/** Ink colours for the board's text, per board style. */
+function boardInk(p: ScenePalette, style: Decor["board"]) {
+  if (style === "chalkboard") {
+    return { surface: "#2e4136", ink: "#f2f0e8", muted: "#b9c4bb", heading: "#ffd27a", done: "#9fe3ad", late: "#ff9b8a" };
+  }
+  // The corkboard has a cream sheet of paper pinned to it.
+  const surface = style === "cork" ? "#f6efd9" : "#fbfbf8";
+  return { surface, ink: "#242323", muted: "#77736f", heading: p.red, done: p.green, late: p.red };
+}
 
 export function Whiteboard({
-  p, chores, roommates, shuffleKey, still, onSelect,
-}: { p: ScenePalette; chores: SceneChore[]; roommates: Roommate[]; shuffleKey: number; still: boolean; onSelect: Select }) {
+  p, style, chores, roommates, shuffleKey, still, onSelect,
+}: {
+  p: ScenePalette;
+  style: Decor["board"];
+  chores: SceneChore[];
+  roommates: Roommate[];
+  shuffleKey: number;
+  still: boolean;
+  onSelect: Select;
+}) {
   const names = new Map(roommates.map((person) => [person.id, person.name]));
   // Open chores first, then done ones; the board fits seven rows.
   const rows = [...chores].sort((a, b) => Number(a.isComplete) - Number(b.isComplete)).slice(0, 7);
-  const key = JSON.stringify([rows.map((c) => [c.title, c.isComplete, c.isOverdue, names.get(c.assigneeId ?? "") ?? ""]), chores.length, p.red, p.green]);
+  const c = boardInk(p, style);
+  const key = JSON.stringify([
+    rows.map((chore) => [chore.title, chore.isComplete, chore.isOverdue, names.get(chore.assigneeId ?? "") ?? ""]),
+    chores.length,
+    style,
+    c,
+  ]);
 
   const texture = useCanvasTexture(512, 340, key, (ctx, w, h) => {
-    ctx.fillStyle = "#fbfbf8";
+    ctx.fillStyle = c.surface;
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = p.red;
+    if (style === "cork") {
+      // Drawing pins in the paper's corners.
+      ctx.fillStyle = "#d73932";
+      for (const [x, y] of [[12, 12], [w - 12, 12], [12, h - 12], [w - 12, h - 12]]) {
+        ctx.beginPath();
+        ctx.arc(x, y, 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.fillStyle = c.heading;
     ctx.font = `34px ${HEADING_FONT}`;
     ctx.fillText("THIS WEEK", 22, 46);
-    ctx.fillStyle = "#77736f";
+    ctx.fillStyle = c.muted;
     ctx.font = `bold 20px ${BODY_FONT}`;
-    const done = chores.filter((c) => c.isComplete).length;
+    const done = chores.filter((chore) => chore.isComplete).length;
     ctx.textAlign = "right";
     ctx.fillText(`${done}/${chores.length} DONE`, w - 22, 44);
     ctx.textAlign = "left";
     if (rows.length === 0) {
-      ctx.fillStyle = "#77736f";
+      ctx.fillStyle = c.muted;
       ctx.font = `26px ${BODY_FONT}`;
       ctx.fillText("Nothing on the board yet.", 22, 110);
       ctx.fillText("Click to add a chore.", 22, 146);
     }
     rows.forEach((chore, index) => {
       const y = 92 + index * 36;
-      ctx.fillStyle = chore.isComplete ? p.green : chore.isOverdue ? p.red : "#242323";
+      ctx.fillStyle = chore.isComplete ? c.done : chore.isOverdue ? c.late : c.ink;
       ctx.font = `26px ${BODY_FONT}`;
       ctx.fillText(chore.isComplete ? "✓" : "○", 22, y);
       const who = names.get(chore.assigneeId ?? "") ?? "anyone";
       ctx.fillText(fitText(ctx, chore.title, 300), 58, y);
-      ctx.fillStyle = "#77736f";
+      ctx.fillStyle = c.muted;
       ctx.font = `bold 20px ${BODY_FONT}`;
       ctx.textAlign = "right";
       ctx.fillText(fitText(ctx, who.toUpperCase(), 120), w - 22, y);
       ctx.textAlign = "left";
       if (chore.isComplete) {
-        ctx.strokeStyle = p.green;
+        ctx.strokeStyle = c.done;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(58, y - 8);
@@ -342,7 +560,7 @@ export function Whiteboard({
       }
     });
     if (chores.length > rows.length) {
-      ctx.fillStyle = "#77736f";
+      ctx.fillStyle = c.muted;
       ctx.font = `bold 18px ${BODY_FONT}`;
       ctx.fillText(`+${chores.length - rows.length} MORE`, 22, h - 14);
     }
@@ -363,61 +581,164 @@ export function Whiteboard({
   return (
     <Hotspot
       room="chores"
-      at={[2.9, 0, 1.9]}
+      // On the landing outside the bedrooms, angled towards the camera.
+      at={WHITEBOARD_SPOT}
       rotation={[0, Math.PI / 4, 0]}
       onSelect={onSelect}
       tagHeight={2.4}
-      label={<><b>Chore board</b> · {chores.filter((c) => !c.isComplete).length} to do</>}
+      label={<><b>Chore board</b> · {chores.filter((chore) => !chore.isComplete).length} to do</>}
     >
-      {/* Easel legs. */}
-      <Block size={[0.07, 1.95, 0.07]} at={[-0.7, 0, 0]} rotation={[-0.08, 0, 0]} color={p.woodDark} />
-      <Block size={[0.07, 1.95, 0.07]} at={[0.7, 0, 0]} rotation={[-0.08, 0, 0]} color={p.woodDark} />
-      <Block size={[0.07, 1.8, 0.07]} at={[0, 0, -0.35]} rotation={[0.2, 0, 0]} color={p.woodDark} />
+      <BoardStand p={p} style={style} />
       <group ref={board} position={[0, 1.3, 0.06]}>
-        <Block size={[1.7, 1.15, 0.06]} at={[0, -0.575, 0]} color={p.metal} />
+        {style === "cork" ? (
+          <>
+            {/* Cork in a wooden frame; the list is a sheet of paper pinned to it. */}
+            <Block size={[1.8, 1.25, 0.05]} at={[0, -0.625, -0.01]} color={p.woodDark} />
+            <Block size={[1.7, 1.15, 0.06]} at={[0, -0.575, 0]} color={p.night ? "#8a6644" : "#c89b62"} />
+          </>
+        ) : (
+          <Block size={[1.7, 1.15, 0.06]} at={[0, -0.575, 0]} color={style === "chalkboard" ? p.woodDark : p.metal} />
+        )}
         <mesh position={[0, 0, 0.035]}>
-          <planeGeometry args={[1.6, 1.06]} />
+          <planeGeometry args={style === "cork" ? [1.4, 0.93] : [1.6, 1.06]} />
           <meshBasicMaterial map={texture} toneMapped={false} />
         </mesh>
-        {/* Marker tray with a red pen. */}
-        <Block size={[1.4, 0.04, 0.12]} at={[0, -0.62, 0.06]} color={p.metal} />
-        <Block size={[0.3, 0.04, 0.04]} at={[0.3, -0.58, 0.06]} color={p.red} shadow={false} />
+        {style === "whiteboard" && (
+          <>
+            {/* Marker tray with a red pen. */}
+            <Block size={[1.4, 0.04, 0.12]} at={[0, -0.62, 0.06]} color={p.metal} />
+            <Block size={[0.3, 0.04, 0.04]} at={[0.3, -0.58, 0.06]} color={p.red} shadow={false} />
+          </>
+        )}
+        {style === "chalkboard" && (
+          <>
+            {/* Ledge with a stick of chalk. */}
+            <Block size={[1.5, 0.05, 0.12]} at={[0, -0.63, 0.06]} color={p.woodDark} />
+            <Block size={[0.2, 0.04, 0.04]} at={[-0.35, -0.58, 0.06]} color="#f2f0e8" shadow={false} />
+          </>
+        )}
       </group>
     </Hotspot>
   );
 }
 
-export function Television({ p, done, total, onSelect }: { p: ScenePalette; done: number; total: number; onSelect: Select }) {
-  const percent = total ? Math.round((done / total) * 100) : 0;
-  const texture = useCanvasTexture(384, 216, `${done}/${total}/${p.red}`, (ctx, w, h) => {
+// ---------- League: the living-room TV ----------
+
+const TV_ROWS = 4;
+
+/** Everything but the picture, which stays in the same spot (facing +x) for every style. */
+function TvBody({ p, style }: { p: ScenePalette; style: Decor["tv"] }) {
+  if (style === "crt") {
+    // A deep wood-effect box with a dark bezel and rabbit-ear aerials.
+    return (
+      <>
+        <Block size={[0.5, 1.0, 1.7]} at={[-0.22, 0.5, 0]} color={p.woodDark} />
+        <Block size={[0.04, 0.92, 1.6]} at={[0.02, 0.54, 0]} color={p.dark} />
+        {[-0.5, 0.5].map((tilt) => (
+          <Block key={tilt} size={[0.02, 0.55, 0.02]} at={[-0.22, 1.5, tilt * 0.2]} rotation={[tilt, 0, 0]} color={p.metal} shadow={false} />
+        ))}
+      </>
+    );
+  }
+  if (style === "projector") {
+    // A pull-down screen on a roller, and a little projector on the floor pointing at it.
+    return (
+      <>
+        <Block size={[0.02, 0.95, 1.65]} at={[0.02, 0.52, 0]} color={p.white} shadow={false} />
+        <mesh position={[0.03, 1.5, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[0.05, 0.05, 1.8, 8]} />
+          <Mat color={p.dark} />
+        </mesh>
+        <group position={[1.1, 0, 0.9]}>
+          <Block size={[0.34, 0.14, 0.3]} at={[0, 0, 0]} color={p.white} />
+          <mesh position={[-0.18, 0.07, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.05, 0.05, 0.04, 10]} />
+            <Mat color="#cfe3ff" glow={0.9} />
+          </mesh>
+        </group>
+      </>
+    );
+  }
+  return <Block size={[0.08, 0.9, 1.55]} at={[0, 0.55, 0]} color={p.dark} />;
+}
+
+/** The TV shows the house league: housemates ranked by chores done this week. */
+export function Television({
+  p, style, roommates, chores, onSelect,
+}: { p: ScenePalette; style: Decor["tv"]; roommates: Roommate[]; chores: SceneChore[]; onSelect: Select }) {
+  const league = useMemo(() => computeLeague(roommates, chores), [roommates, chores]);
+  const star = starOfTheWeek(league);
+  const shown = league.slice(0, TV_ROWS);
+  const key = JSON.stringify([shown.map((row) => [row.person.name, row.rank, row.done, row.assigned, row.overdue]), star?.person.id, league.length, p.red]);
+
+  const texture = useCanvasTexture(384, 216, key, (ctx, w, h) => {
     const gradient = ctx.createLinearGradient(0, 0, 0, h);
     gradient.addColorStop(0, "#1d2438");
     gradient.addColorStop(1, "#111522");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, w, h);
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `86px ${HEADING_FONT}`;
-    ctx.fillText(total ? `${percent}%` : "—", w / 2, 112);
-    ctx.font = `bold 22px ${BODY_FONT}`;
-    ctx.fillStyle = "#9aa3b8";
-    ctx.fillText(total ? `${done} OF ${total} CHORES DONE` : "NO CHORES YET", w / 2, 150);
-    // Progress bar.
-    ctx.fillStyle = "#2d3550";
-    ctx.fillRect(40, 172, w - 80, 12);
+    // Channel strip along the top.
     ctx.fillStyle = p.red;
-    ctx.fillRect(40, 172, ((w - 80) * percent) / 100, 12);
+    ctx.fillRect(0, 0, w, 40);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `28px ${HEADING_FONT}`;
+    ctx.fillText("HOUSE LEAGUE", 18, 31);
+    ctx.font = `bold 15px ${BODY_FONT}`;
+    ctx.textAlign = "right";
+    ctx.fillText("● LIVE", w - 16, 27);
+    ctx.textAlign = "left";
+
+    if (shown.length === 0) {
+      ctx.fillStyle = "#9aa3b8";
+      ctx.font = `bold 22px ${BODY_FONT}`;
+      ctx.textAlign = "center";
+      ctx.fillText("ADD HOUSEMATES TO PLAY", w / 2, 128);
+      return;
+    }
+    shown.forEach((row, index) => {
+      const y = 76 + index * 40;
+      const isStar = row === star;
+      if (isStar) {
+        ctx.fillStyle = "#2d3550";
+        ctx.fillRect(8, y - 28, w - 16, 38);
+      }
+      ctx.fillStyle = isStar ? "#ffcf6b" : "#9aa3b8";
+      ctx.font = `26px ${HEADING_FONT}`;
+      ctx.fillText(isStar ? "★" : String(row.rank), 20, y);
+      ctx.fillStyle = nameColour(row.person.name);
+      ctx.beginPath();
+      ctx.arc(64, y - 9, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `24px ${HEADING_FONT}`;
+      ctx.fillText(fitText(ctx, row.person.name.toUpperCase(), 190), 86, y);
+      ctx.textAlign = "right";
+      ctx.font = `bold 20px ${BODY_FONT}`;
+      ctx.fillStyle = row.overdue ? p.red : "#ffffff";
+      ctx.fillText(row.assigned ? `${row.done}/${row.assigned}` : "—", w - 20, y);
+      ctx.textAlign = "left";
+    });
+    if (league.length > shown.length) {
+      ctx.fillStyle = "#9aa3b8";
+      ctx.font = `bold 13px ${BODY_FONT}`;
+      ctx.fillText(`+${league.length - shown.length} MORE`, 20, h - 6);
+    }
   });
 
   return (
     <Hotspot
-      room="chores"
+      room="league"
       at={[-6.5, 0, 2]}
       onSelect={onSelect}
       tagHeight={2}
-      label={<><b>Weekly score</b> · {percent}%</>}
+      label={
+        <>
+          <b>House league</b>
+          <span className="flat-tag-sub">{star ? `★ ${star.person.name} leads` : "Nobody’s ahead yet"}</span>
+        </>
+      }
     >
-      <Block size={[0.08, 0.9, 1.55]} at={[0, 0.55, 0]} color={p.dark} />
+      <TvBody p={p} style={style} />
       <mesh position={[0.045, 1, 0]} rotation={[0, Math.PI / 2, 0]}>
         <planeGeometry args={[1.45, 0.8]} />
         <meshBasicMaterial map={texture} toneMapped={false} />
@@ -435,9 +756,15 @@ const PORCH_COLOURS: Record<SyncStatus, string> = {
   missing: "#555555",
 };
 
+const DOOR_COLOURS: Record<Exclude<Decor["frontDoor"], "red">, { day: string; night: string }> = {
+  navy: { day: "#2c3e66", night: "#3a5080" },
+  green: { day: "#2f5d46", night: "#27493a" },
+};
+
 export function FrontDoor({
-  p, householdName, status, still, onSelect,
-}: { p: ScenePalette; householdName: string; status: SyncStatus; still: boolean; onSelect: Select }) {
+  p, style, householdName, status, still, onSelect,
+}: { p: ScenePalette; style: Decor["frontDoor"]; householdName: string; status: SyncStatus; still: boolean; onSelect: Select }) {
+  const doorColour = style === "red" ? p.red : p.night ? DOOR_COLOURS[style].night : DOOR_COLOURS[style].day;
   const lampRef = useRef<Mesh>(null);
   const lightRef = useRef<PointLight>(null);
   const label = householdName.trim() || "WELCOME";
@@ -494,8 +821,23 @@ export function FrontDoor({
       <Block size={[1.32, 0.16, 0.26]} at={[0, 2.15, 0]} color={p.white} />
       {/* The door, hinged on the left and standing open (inwards). */}
       <group position={[-0.54, 0, 0]} rotation={[0, 1.05, 0]}>
-        <Block size={[1.06, 2.1, 0.07]} at={[0.53, 0.02, 0]} color={p.red} />
-        <Block size={[0.6, 0.6, 0.02]} at={[0.53, 1.25, 0.045]} color={p.red} emissive="#000000" glow={0} shadow={false} />
+        <Block size={[1.06, 2.1, 0.07]} at={[0.53, 0.02, 0]} color={doorColour} />
+        {style === "navy" ? (
+          // A frosted glass panel that glows from the hall light.
+          <Block size={[0.5, 0.62, 0.02]} at={[0.53, 1.22, 0.045]} color={p.windowGlass} glow={p.night ? 0.6 : 0.25} shadow={false} />
+        ) : (
+          <Block size={[0.6, 0.6, 0.02]} at={[0.53, 1.25, 0.045]} color={doorColour} emissive="#000000" glow={0} shadow={false} />
+        )}
+        {style === "green" && (
+          // Brass knocker: a ring under a little mount.
+          <>
+            <Block size={[0.1, 0.06, 0.03]} at={[0.53, 1.62, 0.05]} color={COIN_GOLD} shadow={false} />
+            <mesh position={[0.53, 1.52, 0.07]}>
+              <torusGeometry args={[0.08, 0.018, 6, 12]} />
+              <Mat color={COIN_GOLD} />
+            </mesh>
+          </>
+        )}
         <mesh position={[0.9, 1.05, 0.06]}>
           <sphereGeometry args={[0.05, 6, 4]} />
           <Mat color={COIN_GOLD} />
@@ -504,8 +846,9 @@ export function FrontDoor({
         <Block size={[0.36, 0.06, 0.02]} at={[0.53, 0.9, 0.045]} color={COIN_GOLD} shadow={false} />
       </group>
       {/* Porch light above the door. */}
+      {style === "green" && <Block size={[0.24, 0.05, 0.24]} at={[0, 2.66, 0.2]} color={p.dark} shadow={false} />}
       <mesh ref={lampRef} position={[0, 2.5, 0.2]}>
-        <boxGeometry args={[0.22, 0.26, 0.14]} />
+        {style === "green" ? <cylinderGeometry args={[0.1, 0.13, 0.3, 6]} /> : <boxGeometry args={[0.22, 0.26, 0.14]} />}
         <Mat color={PORCH_COLOURS[status]} emissive={PORCH_COLOURS[status]} glow={1} />
       </mesh>
       <pointLight ref={lightRef} position={[0, 2.35, 0.6]} color={PORCH_COLOURS[status]} distance={5} decay={1.5} />
@@ -556,6 +899,7 @@ function DoorPlate({ text }: { text: string }) {
 
 export function BedroomDoors({ p, roommates, onSelect }: { p: ScenePalette; roommates: Roommate[]; onSelect: Select }) {
   // One door per housemate; if there are more than fit, the last door says "+N more".
+  // With no housemates there are no bedroom doors: the front door is the way into house settings.
   const overflow = roommates.length > MAX_BEDROOM_DOORS;
   const shown = overflow ? roommates.slice(0, MAX_BEDROOM_DOORS - 1) : roommates;
   const doors: { key: string; text: string; colour: string }[] = shown.map((person) => ({
@@ -564,7 +908,6 @@ export function BedroomDoors({ p, roommates, onSelect }: { p: ScenePalette; room
     colour: nameColour(person.name),
   }));
   if (overflow) doors.push({ key: "more", text: `+${roommates.length - shown.length} more`, colour: p.muted });
-  if (doors.length === 0) doors.push({ key: "spare", text: "Spare room", colour: p.muted });
 
   return (
     <>

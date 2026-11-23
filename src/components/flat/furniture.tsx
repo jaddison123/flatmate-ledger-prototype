@@ -1,7 +1,9 @@
 // The flat itself: floors, walls, windows and the furniture that does not show any data.
+// Pieces the house can swap in the decor picker take their style as a prop.
 // Everything is built from a handful of flat-shaded primitives (no model files), so the
 // low-poly look comes from low segment counts and `flatShading`.
 import type { ReactNode } from "react";
+import type { Decor } from "../../hooks/useHouseholdData";
 import type { ScenePalette } from "./palette";
 import type { Vec3 } from "./rooms";
 
@@ -154,12 +156,19 @@ function WindowFrame({ at, width, height, p, side = false }: { at: Vec3; width: 
   );
 }
 
+const KITCHEN_UNITS: Record<Decor["kitchen"], (p: ScenePalette) => { units: string; top: string }> = {
+  white: (p) => ({ units: p.white, top: p.woodDark }),
+  wood: (p) => ({ units: p.wood, top: p.white }),
+  mint: (p) => ({ units: p.night ? "#4f7a68" : "#a8d8c2", top: p.woodDark }),
+};
+
 /** Kitchen counter, sink, hob, cupboards and a bin. */
-export function Kitchen({ p }: { p: ScenePalette }) {
+export function Kitchen({ p, style }: { p: ScenePalette; style: Decor["kitchen"] }) {
+  const { units, top } = KITCHEN_UNITS[style](p);
   return (
     <group>
-      <Block size={[4.9, 0.9, 0.7]} at={[-4.45, 0, -4.62]} color={p.white} />
-      <Block size={[5, 0.08, 0.78]} at={[-4.45, 0.9, -4.6]} color={p.woodDark} />
+      <Block size={[4.9, 0.9, 0.7]} at={[-4.45, 0, -4.62]} color={units} />
+      <Block size={[5, 0.08, 0.78]} at={[-4.45, 0.9, -4.6]} color={top} />
       {/* Sink under the window, with a tap. */}
       <Block size={[0.9, 0.04, 0.5]} at={[-3.4, 0.96, -4.6]} color={p.metal} />
       <Cyl args={[0.03, 0.03, 0.35, 6]} at={[-3.4, 0.98, -4.9]} color={p.metal} />
@@ -173,7 +182,7 @@ export function Kitchen({ p }: { p: ScenePalette }) {
       )}
       <Block size={[0.8, 0.55, 0.04]} at={[-5.6, 0.18, -4.25]} color={p.dark} />
       {/* Wall cupboards on the left of the window. */}
-      <Block size={[2.2, 0.7, 0.4]} at={[-5.75, 1.6, -4.78]} color={p.white} />
+      <Block size={[2.2, 0.7, 0.4]} at={[-5.75, 1.6, -4.78]} color={units} />
       <Block size={[0.02, 0.6, 0.02]} at={[-5.75, 1.65, -4.57]} color={p.wallCap} shadow={false} />
       {/* Pedal bin by the counter. */}
       <Cyl args={[0.2, 0.18, 0.55, 7]} at={[-1.6, 0, -4.5]} color={p.metal} />
@@ -181,36 +190,101 @@ export function Kitchen({ p }: { p: ScenePalette }) {
   );
 }
 
-/** Bath, toilet, basin and washing machine. */
-export function Bathroom({ p }: { p: ScenePalette }) {
+/** Bath or walk-in shower, toilet, basin and washing machine. The mirror is a live part. */
+export function Bathroom({ p, bath }: { p: ScenePalette; bath: Decor["bath"] }) {
   return (
     <group>
-      <Block size={[2, 0.6, 0.85]} at={[0.2, 0, -4.52]} color={p.white} />
-      <Block size={[1.7, 0.05, 0.6]} at={[0.2, 0.56, -4.52]} color={p.floorBath} glow={0.15} shadow={false} />
+      {bath === "bath" ? (
+        <>
+          <Block size={[2, 0.6, 0.85]} at={[0.2, 0, -4.52]} color={p.white} />
+          <Block size={[1.7, 0.05, 0.6]} at={[0.2, 0.56, -4.52]} color={p.floorBath} glow={0.15} shadow={false} />
+        </>
+      ) : (
+        <>
+          {/* Shower tray, two glass screens and a rail with the head on top. */}
+          <Block size={[1.2, 0.08, 1.1]} at={[-0.2, 0, -4.4]} color={p.white} />
+          <Block size={[1.0, 0.02, 0.9]} at={[-0.2, 0.08, -4.4]} color={p.floorBath} glow={0.15} shadow={false} />
+          <Block size={[1.2, 1.75, 0.04]} at={[-0.2, 0.08, -3.85]} color={p.windowGlass} transparent opacity={0.3} shadow={false} />
+          <Block size={[0.04, 1.75, 1.1]} at={[0.4, 0.08, -4.4]} color={p.windowGlass} transparent opacity={0.3} shadow={false} />
+          <Cyl args={[0.025, 0.025, 1.9, 6]} at={[-0.5, 0, -4.9]} color={p.metal} />
+          <Block size={[0.26, 0.04, 0.26]} at={[-0.5, 1.85, -4.75]} color={p.metal} />
+        </>
+      )}
       {/* Toilet: bowl, seat and cistern. */}
       <Cyl args={[0.24, 0.18, 0.4, 7]} at={[2.4, 0, -4.35]} color={p.white} />
       <Cyl args={[0.26, 0.26, 0.05, 7]} at={[2.4, 0.4, -4.35]} color={p.white} />
       <Block size={[0.5, 0.45, 0.2]} at={[2.4, 0.4, -4.82]} color={p.white} />
-      {/* Basin on a pedestal. */}
-      <Cyl args={[0.08, 0.1, 0.75, 6]} at={[2.55, 0, -2.4]} color={p.white} />
-      <Block size={[0.45, 0.12, 0.55]} at={[2.55, 0.75, -2.4]} color={p.white} />
-      <Block size={[0.04, 0.5, 0.42]} at={[2.86, 1.0, -2.4]} color={p.windowGlass} glow={0.1} shadow={false} />
+      {/* Basin on a pedestal against the back wall, under the mirror (a live part). */}
+      <Cyl args={[0.08, 0.1, 0.75, 6]} at={[1.7, 0, -4.72]} color={p.white} />
+      <Block size={[0.55, 0.12, 0.42]} at={[1.7, 0.75, -4.72]} color={p.white} />
       {/* Washing machine with a round door facing the camera. */}
       <Block size={[0.75, 0.85, 0.75]} at={[-0.45, 0, -1.65]} color={p.white} />
       <Cyl args={[0.22, 0.22, 0.04, 10]} at={[-0.45, 0.4, -1.27]} rotation={[Math.PI / 2, 0, 0]} color={p.dark} glow={0.1} />
-      {/* Bath mat. */}
-      <Block size={[0.9, 0.02, 0.5]} at={[0.4, 0.04, -3.75]} color={p.red} shadow={false} />
+      {/* Bath mat, in front of the bath or the shower. */}
+      <Block size={[0.9, 0.02, 0.5]} at={[bath === "bath" ? 0.4 : -0.2, 0.04, -3.5]} color={p.red} shadow={false} />
     </group>
   );
 }
 
-/** Rug, TV stand, plant, floor lamp. The sofa, TV screen and phone show data (see live parts). */
-export function LivingRoom({ p }: { p: ScenePalette }) {
+function Rug({ p, style }: { p: ScenePalette; style: Decor["rug"] }) {
+  switch (style) {
+    case "round":
+      return (
+        <mesh position={[-4.7, 0.055, 2]} receiveShadow>
+          <cylinderGeometry args={[1.5, 1.5, 0.03, 18]} />
+          <Mat color={p.rug} />
+        </mesh>
+      );
+    case "striped":
+      return (
+        <group>
+          <Block size={[3.4, 0.03, 3]} at={[-4.7, 0.04, 2]} color={p.rug} shadow={false} />
+          {[-1.05, -0.35, 0.35, 1.05].map((dz) => (
+            <Block key={dz} size={[3.4, 0.032, 0.28]} at={[-4.7, 0.041, 2 + dz]} color={p.wallCap} shadow={false} />
+          ))}
+        </group>
+      );
+    case "none":
+      return null;
+    default:
+      return <Block size={[3.4, 0.03, 3]} at={[-4.7, 0.04, 2]} color={p.rug} shadow={false} />;
+  }
+}
+
+function Plant({ p, style }: { p: ScenePalette; style: Decor["plant"] }) {
+  if (style === "cactus") {
+    return (
+      <group position={[0.3, 0, 4.4]}>
+        <Cyl args={[0.22, 0.16, 0.35, 6]} at={[0, 0, 0]} color={p.red} />
+        <Cyl args={[0.14, 0.16, 0.9, 6]} at={[0, 0.35, 0]} color={p.plant} />
+        {/* Two arms, each a short stub out and a short stalk up. */}
+        <Block size={[0.22, 0.1, 0.1]} at={[0.2, 0.7, 0]} color={p.plant} />
+        <Cyl args={[0.06, 0.06, 0.3, 6]} at={[0.28, 0.7, 0]} color={p.plant} />
+        <Block size={[0.2, 0.09, 0.09]} at={[-0.18, 0.9, 0]} color={p.plant} />
+        <Cyl args={[0.05, 0.05, 0.25, 6]} at={[-0.26, 0.9, 0]} color={p.plant} />
+        <mesh position={[0, 1.28, 0]}>
+          <icosahedronGeometry args={[0.07, 0]} />
+          <Mat color="#f4a6b8" glow={0.1} />
+        </mesh>
+      </group>
+    );
+  }
+  if (style === "palm") {
+    return (
+      <group position={[0.3, 0, 4.4]}>
+        <Cyl args={[0.24, 0.2, 0.5, 6]} at={[0, 0, 0]} color={p.white} />
+        <Cyl args={[0.05, 0.07, 1.25, 5]} at={[0, 0.5, 0]} color={p.woodDark} />
+        {/* Six drooping fronds around the top of the trunk. */}
+        {Array.from({ length: 6 }, (_, i) => (
+          <group key={i} position={[0, 1.72, 0]} rotation={[0, (i * Math.PI) / 3, 0]}>
+            <Block size={[0.85, 0.03, 0.2]} at={[0.38, -0.12, 0]} rotation={[0, 0, -0.4]} color={p.plant} />
+          </group>
+        ))}
+      </group>
+    );
+  }
   return (
     <group>
-      <Block size={[3.4, 0.03, 3]} at={[-4.7, 0.04, 2]} color={p.rug} shadow={false} />
-      <Block size={[0.5, 0.5, 1.9]} at={[-6.65, 0, 2]} color={p.woodDark} />
-      {/* Plant in a pot. */}
       <Cyl args={[0.25, 0.18, 0.45, 6]} at={[0.3, 0, 4.4]} color={p.red} />
       <mesh position={[0.3, 0.95, 4.4]} castShadow>
         <icosahedronGeometry args={[0.45, 0]} />
@@ -220,10 +294,62 @@ export function LivingRoom({ p }: { p: ScenePalette }) {
         <icosahedronGeometry args={[0.28, 0]} />
         <Mat color={p.plant} />
       </mesh>
-      {/* Floor lamp; its shade glows at night (the light itself is in the scene's lighting). */}
+    </group>
+  );
+}
+
+const FAIRY_COLOURS = ["#ffd58a", "#ffb37a", "#fff1c2"];
+
+/** The living room's light. At night the scene adds a warm point light in this corner. */
+function Lamp({ p, style }: { p: ScenePalette; style: Decor["lamp"] }) {
+  const shadeColour = p.night ? "#ffd58a" : p.white;
+  const shadeGlow = p.night ? 0.9 : 0;
+  if (style === "arc") {
+    return (
+      <group>
+        <Block size={[0.4, 0.06, 0.4]} at={[-6.4, 0, 4.55]} color={p.metal} />
+        <Cyl args={[0.03, 0.03, 1.85, 6]} at={[-6.4, 0, 4.55]} color={p.metal} />
+        {/* Arm reaching towards the middle of the room (rotating +x towards -z). */}
+        <group position={[-6.4, 1.85, 4.55]} rotation={[0, Math.PI / 4, 0]}>
+          <Block size={[1.15, 0.04, 0.04]} at={[0.57, -0.02, 0]} color={p.metal} />
+          <Cyl args={[0.1, 0.28, 0.26, 8]} at={[1.12, -0.3, 0]} color={shadeColour} glow={shadeGlow} />
+        </group>
+      </group>
+    );
+  }
+  if (style === "fairy") {
+    // A string of bulbs along the left wall, sagging between hooks.
+    return (
+      <group>
+        {Array.from({ length: 16 }, (_, i) => {
+          const sag = Math.abs(Math.sin((i / 15) * Math.PI * 3)) * 0.16;
+          return (
+            <mesh key={i} position={[-6.88, 2.12 - sag, -0.6 + i * 0.35]}>
+              <icosahedronGeometry args={[0.05, 0]} />
+              <Mat color={FAIRY_COLOURS[i % FAIRY_COLOURS.length]} glow={p.night ? 1.3 : 0.35} />
+            </mesh>
+          );
+        })}
+      </group>
+    );
+  }
+  return (
+    <group>
       <Cyl args={[0.25, 0.25, 0.04, 8]} at={[-6.4, 0, 4.55]} color={p.dark} />
       <Cyl args={[0.03, 0.03, 1.5, 6]} at={[-6.4, 0, 4.55]} color={p.dark} />
-      <Cyl args={[0.2, 0.38, 0.4, 8]} at={[-6.4, 1.45, 4.55]} color={p.night ? "#ffd58a" : p.white} glow={p.night ? 0.9 : 0} />
+      <Cyl args={[0.2, 0.38, 0.4, 8]} at={[-6.4, 1.45, 4.55]} color={shadeColour} glow={shadeGlow} />
+    </group>
+  );
+}
+
+/** Rug, TV stand, plant, lamp and side table. The sofa, TV screen and phone show data (see live parts). */
+export function LivingRoom({ p, decor }: { p: ScenePalette; decor: Decor }) {
+  return (
+    <group>
+      <Rug p={p} style={decor.rug} />
+      <Block size={[0.5, 0.5, 1.9]} at={[-6.65, 0, 2]} color={p.woodDark} />
+      <Plant p={p} style={decor.plant} />
+      <Lamp p={p} style={decor.lamp} />
       {/* Side table with a mug by the sofa. */}
       <Block size={[0.5, 0.5, 0.5]} at={[-2.9, 0, 3.75]} color={p.wood} />
       <Cyl args={[0.07, 0.07, 0.14, 7]} at={[-2.9, 0.5, 3.75]} color={p.red} />

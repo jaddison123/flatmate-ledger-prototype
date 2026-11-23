@@ -18,8 +18,49 @@ export const LIMITS = {
   maxAmount: 1_000_000,
 };
 
+/**
+ * The 3D flat's swappable furniture: each slot's allowed styles, first one = default.
+ * Labels live in the browser (src/components/flat/decor.ts); only the ids are checked here.
+ */
+export const DECOR_OPTIONS = {
+  walls: ["classic", "sage", "blush", "navy"],
+  floor: ["oak", "walnut", "grey"],
+  sofa: ["classic", "corner", "beanbags"],
+  upholstery: ["red", "green", "mustard", "grey"],
+  rug: ["rectangle", "round", "striped", "none"],
+  plant: ["leafy", "cactus", "palm"],
+  lamp: ["floor", "arc", "fairy"],
+  kitchen: ["white", "wood", "mint"],
+  table: ["wood", "round"],
+  bath: ["bath", "shower"],
+  fridge: ["classic", "retro", "steel"],
+  tv: ["flat", "crt", "projector"],
+  board: ["whiteboard", "chalkboard", "cork"],
+  frontDoor: ["red", "navy", "green"],
+  mirror: ["gilt", "round", "cabinet"],
+};
+
+export function defaultDecor() {
+  return Object.fromEntries(Object.entries(DECOR_OPTIONS).map(([slot, styles]) => [slot, styles[0]]));
+}
+
+function isDecorChoice(slot, style) {
+  return Object.hasOwn(DECOR_OPTIONS, slot) && DECOR_OPTIONS[slot].includes(style);
+}
+
+/** Keeps known choices and fills the rest with defaults, so old houses and retired styles still load. */
+function normalizeDecor(value) {
+  const decor = defaultDecor();
+  if (isRecord(value)) {
+    for (const slot of Object.keys(decor)) {
+      if (isDecorChoice(slot, value[slot])) decor[slot] = value[slot];
+    }
+  }
+  return decor;
+}
+
 export function emptyHousehold() {
-  return { roommates: [], chores: [], expenses: [], notes: [], householdName: "" };
+  return { roommates: [], chores: [], expenses: [], notes: [], householdName: "", decor: defaultDecor() };
 }
 
 function isRecord(value) {
@@ -82,7 +123,7 @@ function isList(value, check, max) {
 
 /**
  * Checks household data from storage or an upload and fills in fields that older saved data
- * may lack (notes, householdName). Returns a clean copy, or null if the data is invalid.
+ * may lack (notes, householdName, decor). Returns a clean copy, or null if the data is invalid.
  * Extra fields such as the old per-browser `chatUsername` are dropped.
  */
 export function normalizeHousehold(value) {
@@ -108,6 +149,7 @@ export function normalizeHousehold(value) {
     })),
     notes: notes.map(({ id, text, createdAt }) => ({ id, text, createdAt })),
     householdName,
+    decor: normalizeDecor(value.decor),
   };
 }
 
@@ -251,6 +293,11 @@ export function applyAction(household, action) {
       if (!isText(action.name, LIMITS.houseName, 0)) fail("The house name can be up to 28 characters.");
       if (action.name === household.householdName) return household;
       return { ...household, householdName: action.name };
+
+    case "setDecor":
+      if (!isDecorChoice(action.slot, action.style)) fail("That furniture option is not available.");
+      if (household.decor[action.slot] === action.style) return household;
+      return { ...household, decor: { ...household.decor, [action.slot]: action.style } };
 
     default:
       return fail("Unknown change.");
