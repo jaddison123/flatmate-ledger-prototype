@@ -6,6 +6,7 @@ import type { ChatActivity } from "../HomeChat";
 import type { Decor, Expense, Note, Roommate, SyncStatus } from "../../hooks/useHouseholdData";
 import { useModalFocus } from "../../hooks/useModalFocus";
 import { playSound, setSoundEnabled } from "../../lib/sfx";
+import { FlatTour, TOUR_STEPS, hasSeenTour, markTourSeen, tourStepFor } from "./FlatTour";
 import type { SceneChore } from "./liveParts";
 import { ROOMS, ROOM_ORDER, type RoomId } from "./rooms";
 
@@ -13,6 +14,8 @@ const FlatScene = lazy(() => import("./FlatScene"));
 
 const SOUND_KEY = "chore-score:sound";
 const SIDE_SHEET_WIDTH = 460;
+// The tour card (340 px, 72 px in from the right): the camera keeps rooms clear of it.
+const TOUR_CARD_SPACE = 420;
 const RECENT_MESSAGE_MS = 6000;
 const NO_CHAT: ChatActivity = { ready: false, unread: 0, typing: [], latest: null };
 
@@ -103,10 +106,34 @@ function FlatView(props: FlatViewProps) {
   const still = useMediaQuery("(prefers-reduced-motion: reduce)");
   const sheetRef = useRef<HTMLElement>(null);
 
+  // The first-visit tour: the step showing, or null. Never at the same time as a room sheet.
+  const [tour, setTour] = useState<number | null>(() => (hasSeenTour() ? null : 0));
+  const tourRoom = tour !== null ? TOUR_STEPS[tour].room : null;
+
   const closeRoom = useCallback(() => setRoom(null), []);
   useModalFocus(sheetRef, room !== null, closeRoom);
 
+  const endTour = useCallback(() => {
+    markTourSeen();
+    setTour(null);
+  }, []);
+
+  function startTour() {
+    setRoom(null);
+    setTour(0);
+  }
+
+  function goToTourStep(step: number) {
+    if (TOUR_STEPS[step].room) playSound("open");
+    setTour(step);
+  }
+
   function openRoom(next: RoomId) {
+    // Mid-tour, clicking a room (in the scene or the buttons) jumps the tour there instead.
+    if (tour !== null) {
+      goToTourStep(tourStepFor(next));
+      return;
+    }
     if (next !== room) playSound("open");
     setRoom(next);
   }
@@ -150,7 +177,10 @@ function FlatView(props: FlatViewProps) {
   };
 
   return (
-    <section className={`flat-stage${room ? " flat-stage-open" : ""}`} aria-label="Your flat">
+    <section
+      className={`flat-stage${room ? " flat-stage-open" : ""}${tour !== null ? " flat-stage-touring" : ""}`}
+      aria-label="Your flat"
+    >
       <SceneErrorBoundary onFallback={props.onUseListView}>
         <Suspense fallback={<div className="flat-message" role="status">Building your flat…</div>}>
           <FlatScene
@@ -164,8 +194,8 @@ function FlatView(props: FlatViewProps) {
             chat={chat}
             recentMessage={recent}
             darkMode={props.darkMode}
-            focus={room}
-            sheetWidth={wide ? SIDE_SHEET_WIDTH : 0}
+            focus={room ?? tourRoom}
+            sheetWidth={wide ? (tour !== null ? TOUR_CARD_SPACE : SIDE_SHEET_WIDTH) : 0}
             recentreKey={recentreKey}
             still={still}
             onSelect={openRoom}
@@ -208,17 +238,26 @@ function FlatView(props: FlatViewProps) {
             aria-label={soundOn ? "Turn sound effects off" : "Turn sound effects on"}
             title={soundOn ? "Sound on" : "Sound off"}
           >{soundOn ? "🔊" : "🔈"}</button>
+          <button
+            className="flat-tool"
+            type="button"
+            onClick={() => (tour === null ? startTour() : endTour())}
+            aria-pressed={tour !== null}
+            aria-label={tour === null ? "Take the tour of the flat" : "End the tour"}
+            title={tour === null ? "Take the tour" : "End the tour"}
+          >?</button>
         </div>
       </div>
 
       <div className="flat-alerts">{props.alerts}</div>
 
-      <nav className="flat-rooms" aria-label="Rooms" hidden={room !== null && !wide}>
+      {/* On phones the tour card takes the buttons' place at the bottom. */}
+      <nav className="flat-rooms" aria-label="Rooms" hidden={(room !== null || tour !== null) && !wide}>
         {ROOM_ORDER.map((id) => (
           <button
             key={id}
             type="button"
-            className={`flat-room-button${room === id ? " active" : ""}`}
+            className={`flat-room-button${room === id ? " active" : ""}${tourRoom === id ? " touring" : ""}`}
             onClick={() => (room === id ? closeRoom() : openRoom(id))}
             aria-pressed={room === id}
           >
@@ -234,6 +273,8 @@ function FlatView(props: FlatViewProps) {
         ))}
       </nav>
       <p className="flat-hint" aria-hidden="true">Drag to move · scroll or pinch to zoom · click anything that grows</p>
+
+      {tour !== null && <FlatTour step={tour} onStep={goToTourStep} onClose={endTour} />}
 
       <aside
         ref={sheetRef}

@@ -2184,6 +2184,120 @@ a {
   pointer-events: none;
 }
 
+/* The first-visit tour card (flat/FlatTour.tsx): right of the stage, clear of the tool buttons.
+   TOUR_CARD_SPACE in FlatView.tsx must cover its width + right offset. */
+.flat-tour {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  right: 72px;
+  width: 340px;
+  padding: 14px 18px 16px;
+  border-top: 4px solid var(--red);
+  background: var(--paper);
+  box-shadow: var(--shadow), 0 18px 48px rgb(0 0 0 / 22%);
+  transform: translateY(-55%);
+  animation: flat-pop 220ms ease-out;
+}
+
+.flat-tour-top,
+.flat-tour-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.flat-tour-skip {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: "Arial Narrow", Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.flat-tour-skip:hover {
+  color: var(--red);
+}
+
+.flat-tour-content {
+  animation: flat-pop 220ms ease-out;
+}
+
+.flat-tour-content h2 {
+  margin: 10px 0 6px;
+  font-family: Impact, "Arial Narrow", sans-serif;
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.flat-tour-content p {
+  min-height: 4.2em; /* fewer jumps in the card's height between steps */
+  margin: 0 0 14px;
+  color: var(--ink);
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.flat-tour-dots {
+  display: flex;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flat-tour-dots li {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: width 160ms ease, background 160ms ease;
+}
+
+.flat-tour-dots li.seen {
+  background: var(--muted);
+}
+
+.flat-tour-dots li.active {
+  width: 18px;
+  border-radius: 4px;
+  background: var(--red);
+}
+
+.flat-tour-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.flat-tour-buttons button {
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+/* The room the tour is showing: its button pulses. */
+.flat-room-button.touring {
+  border-color: var(--red);
+  background: var(--red-soft);
+  animation: tour-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--red-soft); }
+  50% { box-shadow: 0 0 0 5px var(--red-soft); }
+}
+
+.flat-stage-touring .flat-hint {
+  display: none;
+}
+
 /* Labels floating over the scene (flat/Overlay.tsx), centred on their point. */
 .flat-overlay {
   position: absolute;
@@ -2648,12 +2762,38 @@ a {
     margin: 0 -16px;
     padding: 10px 16px;
   }
+
+  /* Phones: the tour card replaces the room buttons at the bottom. */
+  .flat-tour {
+    top: auto;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    width: auto;
+    padding: 12px 14px 14px;
+    transform: none;
+  }
+
+  .flat-tour-content h2 {
+    font-size: 22px;
+  }
+
+  .flat-tour-content p {
+    min-height: 0;
+  }
+
+  .flat-stage-touring .flat-alerts {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .room-sheet,
   .flat-chat-bubble,
-  .flat-emote-text {
+  .flat-emote-text,
+  .flat-tour,
+  .flat-tour-content,
+  .flat-room-button.touring {
     animation: none;
   }
 }
