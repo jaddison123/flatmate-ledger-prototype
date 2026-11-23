@@ -91,14 +91,18 @@ export interface FlatViewProps {
   /** Status / error messages to show over the scene. */
   alerts: ReactNode;
   /** The contents of each room's sheet (the chat is handled separately: it stays connected). */
-  panels: Record<Exclude<RoomId, "chat">, ReactNode>;
+  panels: Record<Exclude<RoomId, "chat" | "looks">, ReactNode>;
+  /** The bedroom doors' look picker, opened on the housemate whose door or avatar was clicked. */
+  renderLooks: (personId: string | null) => ReactNode;
   renderChat: (active: boolean, onActivity: (activity: ChatActivity) => void) => ReactNode;
   onUseListView: () => void;
 }
 
 function FlatView(props: FlatViewProps) {
-  const { chores, notes, expenses, panels, renderChat } = props;
+  const { chores, notes, expenses, panels, renderChat, renderLooks } = props;
   const [room, setRoom] = useState<RoomId | null>(null);
+  // Whose look the "looks" sheet opens on (null: the first housemate).
+  const [lookPerson, setLookPerson] = useState<string | null>(null);
   const [recentreKey, setRecentreKey] = useState(0);
   const [chat, setChat] = useState<ChatActivity>(NO_CHAT);
   const [soundOn, setSoundOn] = useState(readSoundSetting);
@@ -128,13 +132,14 @@ function FlatView(props: FlatViewProps) {
     setTour(step);
   }
 
-  function openRoom(next: RoomId) {
+  function openRoom(next: RoomId, personId?: string) {
     // Mid-tour, clicking a room (in the scene or the buttons) jumps the tour there instead.
     if (tour !== null) {
       goToTourStep(tourStepFor(next));
       return;
     }
     if (next !== room) playSound("open");
+    if (next === "looks" && personId) setLookPerson(personId);
     setRoom(next);
   }
 
@@ -173,6 +178,7 @@ function FlatView(props: FlatViewProps) {
     bills: expenses.length > 0 ? String(expenses.length) : "",
     chat: chat.unread > 0 ? String(chat.unread) : "",
     house: "",
+    looks: "",
     decor: "",
   };
 
@@ -260,6 +266,7 @@ function FlatView(props: FlatViewProps) {
             className={`flat-room-button${room === id ? " active" : ""}${tourRoom === id ? " touring" : ""}`}
             onClick={() => (room === id ? closeRoom() : openRoom(id))}
             aria-pressed={room === id}
+            title={`${ROOMS[id].label}: ${ROOMS[id].place}`}
           >
             <span className="flat-room-icon" aria-hidden="true">{ROOMS[id].icon}</span>
             <span className="flat-room-text">
@@ -293,7 +300,8 @@ function FlatView(props: FlatViewProps) {
           </button>
         </div>
         <div className="room-sheet-body">
-          {room && room !== "chat" && panels[room]}
+          {room === "looks" && renderLooks(lookPerson)}
+          {room && room !== "chat" && room !== "looks" && panels[room]}
           {/* The chat stays mounted (and connected) so the sofa can show new messages. */}
           <div hidden={room !== "chat"}>{renderChat(room === "chat", setChat)}</div>
         </div>

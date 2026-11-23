@@ -20,6 +20,7 @@ import TopBar from "./components/TopBar";
 // FlatView is small; it lazy-loads the three.js scene itself.
 import FlatView, { hasWebGL } from "./components/flat/FlatView";
 import DecorPicker from "./components/DecorPicker";
+import LookPicker from "./components/LookPicker";
 import HouseLeague from "./components/HouseLeague";
 
 const THEME_KEY = "chore-score:theme";
@@ -73,6 +74,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
     setHouseholdName,
     decor,
     setDecor,
+    setLook,
     isLoaded,
     status,
     syncError,
@@ -237,6 +239,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
               ),
               decor: <DecorPicker decor={decor} onChange={setDecor} />,
             }}
+            renderLooks={(personId) => <LookPicker roommates={roommates} personId={personId} onChange={setLook} />}
             renderChat={(active, onActivity) => (
               <HomeChat
                 houseCode={houseCode}

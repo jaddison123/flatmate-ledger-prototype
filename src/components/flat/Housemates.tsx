@@ -10,18 +10,17 @@ import type { ChatActivity } from "../HomeChat";
 import type { Decor, Expense, Roommate } from "../../hooks/useHouseholdData";
 import { computeBalances } from "../../lib/bills";
 import { computeLeague, starOfTheWeek } from "../../lib/league";
-import { initial, nameColour } from "../../lib/nameColour";
+import { initial } from "../../lib/nameColour";
+import { Avatar } from "./Avatar";
 import { Block, Cyl, Mat } from "./furniture";
-import { Hotspot, Tag, hashOf, type SceneChore } from "./liveParts";
+import { Hotspot, Tag, hashOf, type SceneChore, type Select } from "./liveParts";
 import {
   buildSpots, chatPing, cheer, createLife, hopAll, setSpots, stepLife, syncAgents,
   type Life, type PersonFacts, type Prop,
 } from "./life";
 import { Overlay } from "./Overlay";
-import { AVATAR_SPOTS, MAX_BEDROOM_DOORS, messZone, type RoomId, type Vec3 } from "./rooms";
+import { AVATAR_SPOTS, MAX_BEDROOM_DOORS, messZone, type Vec3 } from "./rooms";
 
-const SKIN_TONES = ["#f1c9a5", "#d9a066", "#a8714a", "#7a4b2f", "#e8b894"];
-const HAIR = ["#2b2118", "#6b4a2b", "#c9a15a", "#1d1d1d", "#8a3b2a"];
 const ORIGIN: Vec3 = [0, 0, 0];
 const EMOTE_AT: Vec3 = [0, 1.62, 0];
 const PROPS: Prop[] = ["phone", "mug", "snack", "book", "bag"];
@@ -89,7 +88,7 @@ function HeldThings({ refs }: { refs: { current: Partial<Record<Prop, Group | nu
 
 function Housemate({
   person, life, home, still, onSelect,
-}: { person: Roommate; life: Life; home: Vec3; still: boolean; onSelect: (room: RoomId) => void }) {
+}: { person: Roommate; life: Life; home: Vec3; still: boolean; onSelect: Select }) {
   const root = useRef<Group>(null);
   const body = useRef<Group>(null);
   const held = useRef<Partial<Record<Prop, Group | null>>>({});
@@ -155,34 +154,17 @@ function Housemate({
     for (const prop of PROPS) if (held.current[prop]) held.current[prop]!.visible = prop === holding;
   });
 
-  const colour = nameColour(person.name);
-  const skin = SKIN_TONES[hashOf(person.name) % SKIN_TONES.length];
-
   return (
     <group ref={root}>
       <Hotspot
-        room="house"
+        room="looks"
         at={ORIGIN}
-        onSelect={onSelect}
+        onSelect={(room) => onSelect(room, person.id)}
         tagHeight={1.8}
-        label={<><b>{person.name}</b>{ui.label && <span className="flat-tag-sub">{ui.label}</span>}</>}
+        label={<><b>{person.name}</b><span className="flat-tag-sub">{ui.label || "Change their look"}</span></>}
       >
         <group ref={body}>
-          <mesh position={[0, 0.36, 0]} castShadow>
-            <cylinderGeometry args={[0.17, 0.26, 0.72, 6]} />
-            <Mat color={colour} />
-          </mesh>
-          <mesh position={[0, 0.93, 0]} castShadow>
-            <icosahedronGeometry args={[0.21, 0]} />
-            <Mat color={skin} />
-          </mesh>
-          {/* Eyes and a hat-like tuft of hair in a darker shade. */}
-          <Block size={[0.04, 0.05, 0.02]} at={[-0.07, 0.94, 0.18]} color="#1c1c1c" shadow={false} />
-          <Block size={[0.04, 0.05, 0.02]} at={[0.07, 0.94, 0.18]} color="#1c1c1c" shadow={false} />
-          <mesh position={[0, 1.1, -0.02]} castShadow>
-            <coneGeometry args={[0.17, 0.16, 5]} />
-            <Mat color={HAIR[seed % HAIR.length]} />
-          </mesh>
+          <Avatar look={person.look} name={person.name} />
           <HeldThings refs={held} />
           {!ui.hidden && <Tag position={[0, 1.35, 0]} className="flat-initial">{initial(person.name)}</Tag>}
           {ui.emote && !ui.hidden && (
@@ -231,7 +213,7 @@ export function Housemates({
   hopKey: number;
   cheers: Cheer;
   still: boolean;
-  onSelect: (room: RoomId) => void;
+  onSelect: Select;
 }) {
   const [life] = useState(createLife);
   const people = roommates.slice(0, AVATAR_SPOTS.length);

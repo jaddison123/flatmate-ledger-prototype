@@ -3,7 +3,28 @@
 export interface Roommate {
   id: string;
   name: string;
+  /** Their avatar in the 3D flat. Missing in older saved houses: filled from defaultLook(id). */
+  look: Look;
 }
+
+/** A housemate's avatar (see LOOK_OPTIONS). */
+export interface Look {
+  /** 0 = male … LOOK_BUILD_MAX = female: shoulders, waist and hips in between. */
+  build: number;
+  skin: "porcelain" | "fair" | "light" | "tan" | "olive" | "brown" | "deep" | "ebony";
+  hair: "short" | "buzz" | "quiff" | "curly" | "bob" | "long" | "ponytail" | "bun" | "afro" | "bald";
+  hairColour: "black" | "brown" | "chestnut" | "blonde" | "ginger" | "grey" | "pink" | "blue";
+  top: "tee" | "hoodie" | "shirt" | "jacket" | "stripes";
+  /** "name" = the person's own colour (lib/nameColour.ts). */
+  topColour: "name" | "red" | "orange" | "yellow" | "green" | "teal" | "blue" | "purple" | "black" | "white";
+  bottoms: "trousers" | "shorts" | "skirt";
+  bottomColour: "denim" | "black" | "grey" | "khaki" | "navy" | "brown";
+  extra: "none" | "glasses" | "shades" | "beanie" | "cap" | "headphones";
+}
+
+export type LookPart = keyof Look;
+/** The parts chosen from a list (everything but the build slider). */
+export type LookListPart = Exclude<LookPart, "build">;
 
 export interface Chore {
   id: string;
@@ -66,7 +87,8 @@ export interface Household {
 export type ChoreUpdates = Partial<Omit<Chore, "id">>;
 
 export type HouseholdAction =
-  | { type: "addRoommate"; roommate: Roommate }
+  | { type: "addRoommate"; roommate: Pick<Roommate, "id" | "name"> }
+  | { [P in LookPart]: { type: "setLook"; id: string; part: P; value: Look[P] } }[LookPart]
   | { type: "removeRoommate"; id: string }
   | { type: "addChore"; chore: Chore }
   | { type: "updateChore"; id: string; updates: ChoreUpdates }
@@ -81,6 +103,7 @@ export type HouseholdAction =
 
 export declare const LIMITS: {
   roommates: number;
+  storedRoommates: number;
   chores: number;
   expenses: number;
   notes: number;
@@ -95,6 +118,9 @@ export declare const LIMITS: {
 
 export declare const DECOR_OPTIONS: { [S in DecorSlot]: readonly Decor[S][] };
 export declare function defaultDecor(): Decor;
+export declare const LOOK_OPTIONS: { [P in LookListPart]: readonly Look[P][] };
+export declare const LOOK_BUILD_MAX: number;
+export declare function defaultLook(id: string): Look;
 export declare function emptyHousehold(): Household;
 export declare function normalizeHousehold(value: unknown): Household | null;
 export declare function hasHouseholdContent(household: Household): boolean;

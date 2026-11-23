@@ -2099,6 +2099,29 @@ a {
   max-width: calc(100% - 492px);
 }
 
+/* ...and unless the screen is very wide, show just the icons there so all eight fit (the
+   names stay for screen readers and as tooltips). */
+@media (max-width: 1700px) {
+  .flat-stage-open .flat-room-button {
+    padding: 6px;
+  }
+
+  .flat-stage-open .flat-room-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .flat-stage-open .flat-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+  }
+}
+
 .flat-room-button {
   position: relative;
   display: flex;
@@ -2609,6 +2632,72 @@ a {
   border-radius: 50%;
 }
 
+/* Look picker (the bedroom doors' panel). Reuses the decor picker's option buttons. */
+.look-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.look-person-dot {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.look-stage {
+  display: grid;
+  justify-items: center;
+  margin-bottom: 6px;
+  padding: 12px 0 8px;
+  border: 1px solid var(--line);
+  background: var(--paper-muted);
+  color: var(--ink);
+}
+
+.look-preview {
+  width: 120px;
+  height: 218px;
+}
+
+.look-name {
+  margin: 4px 0 0;
+  font-family: Impact, "Arial Narrow", sans-serif;
+  font-size: 18px;
+  text-transform: uppercase;
+}
+
+.look-build {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.look-build input {
+  flex: 1;
+  accent-color: var(--red);
+}
+
+.roommate-count {
+  margin-left: 6px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.roommate-form .add-chore-button:disabled,
+.roommate-form input:disabled {
+  cursor: default;
+  opacity: .5;
+}
+
 /* The sheet is narrow, so use the phone layout for the chore board inside it. */
 .room-sheet .section-heading {
   align-items: flex-start;
@@ -2784,6 +2873,10 @@ a {
 
   .flat-stage-touring .flat-alerts {
     display: none;
+  }
+
+  .look-preview {
+    height: 150px;
   }
 }
 

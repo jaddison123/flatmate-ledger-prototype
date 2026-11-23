@@ -21,7 +21,8 @@ import {
 import { BODY_FONT, HEADING_FONT, fitText, useCanvasTexture } from "./textures";
 
 export type SceneChore = Chore & { isComplete: boolean; isOverdue: boolean };
-type Select = (room: RoomId) => void;
+/** Opens a room; `personId` says which housemate (the bedroom doors and avatars open their look). */
+export type Select = (room: RoomId, personId?: string) => void;
 
 const DAY_MS = 86_400_000;
 const NOTE_COLOURS = ["#f6d55c", "#f4a6b8", "#a6dcb0", "#a7c7f2"];
@@ -901,27 +902,35 @@ function DoorPlate({ text }: { text: string }) {
 }
 
 export function BedroomDoors({ p, roommates, onSelect }: { p: ScenePalette; roommates: Roommate[]; onSelect: Select }) {
-  // One door per housemate; if there are more than fit, the last door says "+N more".
-  // With no housemates there are no bedroom doors: the front door is the way into house settings.
+  // One door per housemate, opening their look picker; if there are more than fit, the last door
+  // says "+N more" and opens the first of those. With no housemates there are no bedroom doors.
   const overflow = roommates.length > MAX_BEDROOM_DOORS;
   const shown = overflow ? roommates.slice(0, MAX_BEDROOM_DOORS - 1) : roommates;
-  const doors: { key: string; text: string; colour: string }[] = shown.map((person) => ({
+  const doors: { key: string; personId: string; text: string; colour: string }[] = shown.map((person) => ({
     key: person.id,
+    personId: person.id,
     text: person.name,
     colour: nameColour(person.name),
   }));
-  if (overflow) doors.push({ key: "more", text: `+${roommates.length - shown.length} more`, colour: p.muted });
+  if (overflow) {
+    doors.push({
+      key: "more",
+      personId: roommates[shown.length].id,
+      text: `+${roommates.length - shown.length} more`,
+      colour: p.muted,
+    });
+  }
 
   return (
     <>
       {doors.map((door, index) => (
         <Hotspot
           key={door.key}
-          room="house"
+          room="looks"
           at={[3.65 + index * 0.9, 0, -4.97]}
-          onSelect={onSelect}
+          onSelect={(room) => onSelect(room, door.personId)}
           tagHeight={2.2}
-          label={<><b>{door.text}</b><span className="flat-tag-sub">Edit housemates</span></>}
+          label={<><b>{door.text}</b><span className="flat-tag-sub">{overflow && door.key === "more" ? "Change their looks" : "Change their look"}</span></>}
         >
           <Block size={[0.86, 1.9, 0.04]} at={[0, 0, -0.01]} color={p.white} />
           <Block size={[0.74, 1.82, 0.06]} at={[0, 0, 0]} color={door.colour} />

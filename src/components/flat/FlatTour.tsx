@@ -50,6 +50,11 @@ export const TOUR_STEPS: TourStep[] = [
     body: "Copy the invite link to bring your housemates in, add their names or rename the house. The porch light shows whether you’re connected.",
   },
   {
+    room: "looks",
+    title: "The bedroom doors",
+    body: "Each housemate gets a door. Click one, or a housemate wandering about, to pick their hair, clothes and style. Everyone sees the same look.",
+  },
+  {
     room: "decor",
     title: "The bathroom mirror",
     body: "Pick the wall paint, floor and furniture. Everyone in the house sees the same flat, so choose together.",

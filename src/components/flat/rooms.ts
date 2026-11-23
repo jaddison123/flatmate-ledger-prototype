@@ -14,7 +14,7 @@
 export type Vec3 = [number, number, number];
 
 /** Each feature lives somewhere in the flat. */
-export type RoomId = "chores" | "league" | "notes" | "bills" | "chat" | "house" | "decor";
+export type RoomId = "chores" | "league" | "notes" | "bills" | "chat" | "house" | "looks" | "decor";
 
 export interface RoomInfo {
   label: string;
@@ -34,11 +34,12 @@ export const ROOMS: Record<RoomId, RoomInfo> = {
   bills: { label: "Bills", place: "Kitchen table", icon: "£", focus: [-3.2, 0.8, -2.2], zoom: 2.3 },
   chat: { label: "Chat", place: "Living room sofa", icon: "💬", focus: [-4, 0.8, 2], zoom: 1.9 },
   house: { label: "House", place: "Front door", icon: "⌂", focus: [4.5, 1.2, 3.5], zoom: 1.9 },
+  looks: { label: "Looks", place: "Bedroom doors", icon: "☺", focus: [5, 1.1, -4], zoom: 2.2 },
   // Zoomed out on the whole flat, so you can watch the furniture change as you pick.
   decor: { label: "Decor", place: "Bathroom mirror", icon: "✦", focus: [0.9, 0.3, 1.6], zoom: 0.8 },
 };
 
-export const ROOM_ORDER: RoomId[] = ["chores", "league", "notes", "bills", "chat", "house", "decor"];
+export const ROOM_ORDER: RoomId[] = ["chores", "league", "notes", "bills", "chat", "house", "looks", "decor"];
 
 /** Where a chore's mess appears, guessed from its title. */
 export type MessZone = "kitchen" | "bathroom" | "laundry" | "bins" | "living" | "general";

@@ -5,7 +5,10 @@
 
 /** Size limits, matching the form inputs; the server rejects anything larger. */
 export const LIMITS = {
-  roommates: 30,
+  /** Most housemates you can add (the 3D flat has a spot for each). */
+  roommates: 8,
+  /** Houses saved before the cap of 8 may have up to this many; they must still load. */
+  storedRoommates: 30,
   chores: 300,
   expenses: 2000,
   notes: 100,
@@ -59,6 +62,67 @@ function normalizeDecor(value) {
   return decor;
 }
 
+/**
+ * How each housemate's avatar looks in the 3D flat: each part's allowed ids (labels and colours
+ * live in the browser, src/components/flat/looks.ts). `build` is separate: a whole number from
+ * 0 (male) to LOOK_BUILD_MAX (female), set with a slider.
+ */
+export const LOOK_OPTIONS = {
+  skin: ["porcelain", "fair", "light", "tan", "olive", "brown", "deep", "ebony"],
+  hair: ["short", "buzz", "quiff", "curly", "bob", "long", "ponytail", "bun", "afro", "bald"],
+  hairColour: ["black", "brown", "chestnut", "blonde", "ginger", "grey", "pink", "blue"],
+  top: ["tee", "hoodie", "shirt", "jacket", "stripes"],
+  topColour: ["name", "red", "orange", "yellow", "green", "teal", "blue", "purple", "black", "white"],
+  bottoms: ["trousers", "shorts", "skirt"],
+  bottomColour: ["denim", "black", "grey", "khaki", "navy", "brown"],
+  extra: ["none", "glasses", "shades", "beanie", "cap", "headphones"],
+};
+
+export const LOOK_BUILD_MAX = 10;
+
+function smallHash(text) {
+  let hash = 0;
+  for (const char of text) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return hash;
+}
+
+/**
+ * A starting look, varied by the housemate's id so a new house doesn't fill up with twins.
+ * The same on the server and in the browser, so older houses (saved without looks) match everywhere.
+ */
+export function defaultLook(id) {
+  const hash = smallHash(id);
+  const pick = (list, salt) => list[Math.floor(hash / salt) % list.length];
+  return {
+    build: LOOK_BUILD_MAX / 2,
+    skin: pick(LOOK_OPTIONS.skin, 1),
+    // Everyday styles and natural colours only; the bolder ones are there to choose.
+    hair: pick(["short", "quiff", "curly", "bob", "long", "ponytail"], 7),
+    hairColour: pick(["black", "brown", "chestnut", "blonde", "ginger"], 13),
+    top: "tee",
+    topColour: "name", // the person's colour from lib/nameColour.ts, as on their door and in chat
+    bottoms: "trousers",
+    bottomColour: pick(["denim", "black", "grey", "khaki", "navy"], 17),
+    extra: "none",
+  };
+}
+
+function isLookChoice(part, value) {
+  if (part === "build") return Number.isInteger(value) && value >= 0 && value <= LOOK_BUILD_MAX;
+  return Object.hasOwn(LOOK_OPTIONS, part) && LOOK_OPTIONS[part].includes(value);
+}
+
+/** Keeps known choices and fills the rest from defaultLook, so retired options fall back safely. */
+function normalizeLook(value, id) {
+  const look = defaultLook(id);
+  if (isRecord(value)) {
+    for (const part of Object.keys(look)) {
+      if (isLookChoice(part, value[part])) look[part] = value[part];
+    }
+  }
+  return look;
+}
+
 export function emptyHousehold() {
   return { roommates: [], chores: [], expenses: [], notes: [], householdName: "", decor: defaultDecor() };
 }
@@ -107,7 +171,7 @@ function isExpense(value) {
     isId(value.paidById) &&
     Array.isArray(value.splitBetweenIds) &&
     value.splitBetweenIds.length > 0 &&
-    value.splitBetweenIds.length <= LIMITS.roommates &&
+    value.splitBetweenIds.length <= LIMITS.storedRoommates &&
     value.splitBetweenIds.every(isId) &&
     isShortDate(value.date)
   );
@@ -123,15 +187,15 @@ function isList(value, check, max) {
 
 /**
  * Checks household data from storage or an upload and fills in fields that older saved data
- * may lack (notes, householdName, decor). Returns a clean copy, or null if the data is invalid.
- * Extra fields such as the old per-browser `chatUsername` are dropped.
+ * may lack (notes, householdName, decor, housemates' looks). Returns a clean copy, or null if the
+ * data is invalid. Extra fields such as the old per-browser `chatUsername` are dropped.
  */
 export function normalizeHousehold(value) {
   if (!isRecord(value)) return null;
   const notes = value.notes ?? [];
   const householdName = value.householdName ?? "";
   if (
-    !isList(value.roommates, isRoommate, LIMITS.roommates) ||
+    !isList(value.roommates, isRoommate, LIMITS.storedRoommates) ||
     !isList(value.chores, isChore, LIMITS.chores) ||
     !isList(value.expenses, isExpense, LIMITS.expenses) ||
     !isList(notes, isNote, LIMITS.notes) ||
@@ -140,7 +204,7 @@ export function normalizeHousehold(value) {
     return null;
   }
   return {
-    roommates: value.roommates.map(({ id, name }) => ({ id, name })),
+    roommates: value.roommates.map(({ id, name, look }) => ({ id, name, look: normalizeLook(look, id) })),
     chores: value.chores.map(({ id, title, assigneeId, dueDate, completed, completedWeek }) => ({
       id, title, assigneeId, dueDate, completed, ...(completedWeek === undefined ? {} : { completedWeek }),
     })),
@@ -197,7 +261,21 @@ export function applyAction(household, action) {
       if (!isRoommate(roommate)) fail("A housemate needs a name of up to 40 characters.");
       if (hasId(household.roommates, roommate.id)) return household;
       requireRoom(household.roommates, LIMITS.roommates, "housemates");
-      return { ...household, roommates: [...household.roommates, { id: roommate.id, name: roommate.name.trim() }] };
+      const added = { id: roommate.id, name: roommate.name.trim(), look: defaultLook(roommate.id) };
+      return { ...household, roommates: [...household.roommates, added] };
+    }
+
+    case "setLook": {
+      if (!isId(action.id)) fail("Unknown housemate.");
+      if (!isLookChoice(action.part, action.value)) fail("That look option is not available.");
+      const target = household.roommates.find((roommate) => roommate.id === action.id);
+      // Removed a moment ago by someone else, or no change: nothing to do.
+      if (!target || target.look[action.part] === action.value) return household;
+      const updated = { ...target, look: { ...target.look, [action.part]: action.value } };
+      return {
+        ...household,
+        roommates: household.roommates.map((roommate) => (roommate.id === action.id ? updated : roommate)),
+      };
     }
 
     case "removeRoommate": {

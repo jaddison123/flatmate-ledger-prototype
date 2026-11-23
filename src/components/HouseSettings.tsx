@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import type { Roommate } from "../hooks/useHouseholdData";
+import { LIMITS, type Roommate } from "../hooks/useHouseholdData";
 import { formatHouseCode, inviteLink } from "../lib/house";
 import { initial } from "../lib/nameColour";
 
@@ -31,12 +31,17 @@ function HouseSettings({
   const [formError, setFormError] = useState("");
   const [nameDraft, setNameDraft] = useState(householdName);
   const [copied, setCopied] = useState(false);
+  const houseFull = roommates.length >= LIMITS.roommates;
 
   function handleAddRoommate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = roommateName.trim();
     if (!name) {
       setFormError("Enter a name to add a housemate.");
+      return;
+    }
+    if (houseFull) {
+      setFormError(`A house can have up to ${LIMITS.roommates} housemates.`);
       return;
     }
     onAddRoommate(name);
@@ -89,19 +94,29 @@ function HouseSettings({
       )}
       <p className="dialog-intro">Add your crew so everyone can take a turn.</p>
       <form className="roommate-form" onSubmit={handleAddRoommate}>
-        <label className="field-label" htmlFor="roommate-name">NAME</label>
+        <label className="field-label" htmlFor="roommate-name">
+          NAME <span className="roommate-count">{roommates.length}/{LIMITS.roommates}</span>
+        </label>
         <div className="roommate-input-row">
           <input
             autoFocus={!showRename}
             id="roommate-name"
             value={roommateName}
             onChange={(event) => setRoommateName(event.target.value)}
-            placeholder="e.g. Sam"
+            placeholder={houseFull ? "House full" : "e.g. Sam"}
             maxLength={40}
+            disabled={houseFull}
           />
-          <button className="add-chore-button" type="submit">ADD <span aria-hidden="true">＋</span></button>
+          <button className="add-chore-button" type="submit" disabled={houseFull}>
+            ADD <span aria-hidden="true">＋</span>
+          </button>
         </div>
         {formError && <p className="form-error" role="alert">{formError}</p>}
+        {houseFull && (
+          <p className="dialog-note">
+            That’s the most a house can have ({LIMITS.roommates}). Remove someone to add another.
+          </p>
+        )}
       </form>
       <div className="roommate-list">
         {roommates.length === 0 ? (

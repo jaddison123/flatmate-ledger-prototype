@@ -17,6 +17,8 @@ import {
   type Expense,
   type Household,
   type HouseholdAction,
+  type Look,
+  type LookPart,
 } from "../../shared/household.mjs";
 import {
   ApiError,
@@ -27,7 +29,10 @@ import {
   writeHouseCache,
 } from "../lib/house";
 
-export type { Chore, Decor, DecorSlot, Expense, Household, Note, Roommate } from "../../shared/household.mjs";
+export type {
+  Chore, Decor, DecorSlot, Expense, Household, Look, LookListPart, LookPart, Note, Roommate,
+} from "../../shared/household.mjs";
+export { LIMITS, LOOK_BUILD_MAX, LOOK_OPTIONS } from "../../shared/household.mjs";
 
 /** connecting: first load; live: in sync; reconnecting: connection lost; missing: no such house. */
 export type SyncStatus = "connecting" | "live" | "reconnecting" | "missing";
@@ -229,6 +234,10 @@ export function useHouseholdData(houseCode: string) {
     /** Swaps one piece of the 3D flat's furniture for everyone in the house. */
     setDecor<S extends DecorSlot>(slot: S, style: Decor[S]) {
       dispatch({ type: "setDecor", slot, style } as HouseholdAction);
+    },
+    /** Changes one part of a housemate's avatar (shared with the whole house, like the decor). */
+    setLook<P extends LookPart>(id: string, part: P, value: Look[P]) {
+      dispatch({ type: "setLook", id, part, value } as HouseholdAction);
     },
   };
 }

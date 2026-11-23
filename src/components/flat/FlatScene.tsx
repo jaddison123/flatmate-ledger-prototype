@@ -10,7 +10,7 @@ import { playSound } from "../../lib/sfx";
 import { Bathroom, FlatShell, Hallway, Kitchen, LivingRoom } from "./furniture";
 import {
   BedroomDoors, BillsTable, Burst, ChatCorner, FrontDoor, Fridge, Mess, Mirror, Television,
-  WheelieBin, Whiteboard, layoutMess, type SceneChore,
+  WheelieBin, Whiteboard, layoutMess, type SceneChore, type Select,
 } from "./liveParts";
 import { Housemates, type Cheer } from "./Housemates";
 import { readPalette, withDecor, type ScenePalette } from "./palette";
@@ -34,7 +34,7 @@ export interface FlatSceneProps {
   /** Bumped by the "recentre" button. */
   recentreKey: number;
   still: boolean;
-  onSelect: (room: RoomId) => void;
+  onSelect: Select;
 }
 
 // Camera direction: from the front-right corner, looking down at the flat.
