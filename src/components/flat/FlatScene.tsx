@@ -216,7 +216,7 @@ function Flat(props: FlatSceneProps & { p: ScenePalette }) {
 
       <Fridge p={p} style={decor.fridge} notes={props.notes} still={still} onSelect={onSelect} />
       <Mirror p={p} style={decor.mirror} still={still} onSelect={onSelect} />
-      <BillsTable p={p} style={decor.table} expenses={props.expenses} roommates={roommates} still={still} onSelect={onSelect} />
+      <BillsTable p={p} style={decor.table} expenses={props.expenses} roommates={roommates} meId={props.meId} still={still} onSelect={onSelect} />
       <ChatCorner p={p} sofa={decor.sofa} chat={props.chat} recent={props.recentMessage} still={still} onSelect={onSelect} />
       <Television p={p} style={decor.tv} roommates={roommates} chores={chores} onSelect={onSelect} />
       <Whiteboard p={p} style={decor.board} chores={chores} roommates={roommates} shuffleKey={shuffleKey} still={still} onSelect={onSelect} />

@@ -9,7 +9,7 @@ A student-project prototype for university students sharing a rented home. It tr
 - `npm run dev` — starts the Vite dev server (http://localhost:5173) **and** the chat server (port 3001) together via `dev.mjs`. Ctrl+C stops both.
 - `npm run dev:client` — Vite only. `npm run chat-server` — chat server only.
 - `npm run build` — `tsc -b` type-check, then Vite build into `dist/`. Run this before finishing any change; `npx tsc -b` alone is a quick check.
-- There is no test suite or linter configured.
+- `npm test` — Node's built-in test runner on `tests/*.test.mjs`: `shared/household.mjs` (validation, every action, loading old data) and `src/lib/bills.ts` (Node runs the .ts by stripping types). No test dependencies. Run it after changing shared data or bill maths, and add a test for any new action or field. No linter is configured.
 
 ## Stack and constraints
 
@@ -31,7 +31,8 @@ src/
   components/ChoreBoard.tsx  chore list, filters, add form, rotate button (used by both views)
   components/HouseSettings.tsx housemates ("This is me"), invite link + QR code, rename, leave (list dialog and the flat's front door)
   components/InviteQr.tsx    the invite link as a QR code (lazy, with its encoder)
-  components/WhoAmI.tsx      "Which one are you?" card (floats in the flat, banner in the list view)
+  components/WhoAmI.tsx      "Which one are you?" / "I'm new here" card (floats in the flat, banner in the list view)
+  components/PanelBoundary.tsx error boundary round each panel: a crash shows "try again" there, not a blank page
   components/flat/           the 3D flat (see "3D flat" below)
   hooks/useHouseholdData.ts  a house's shared data, synced with the server (optimistic actions + SSE)
   lib/house.ts               house codes, invite links, per-device localStorage, apiRequest helper
@@ -59,7 +60,7 @@ dev.mjs                    runs vite + server together
 - `removeRoommate` also unassigns their chores, server side, in one step.
 - At most 8 housemates can be added (`LIMITS.roommates`, one avatar spot each); houses saved before the cap may hold up to `LIMITS.storedRoommates` (30) and must keep loading, so validation of stored data uses that.
 - Per device (localStorage): `chore-score:house` (current code), `chore-score:chat-name`, `chore-score:theme`, `chore-score:view` (`flat`/`list`), `chore-score:sound` (`on`/`off`), `chore-score:tour` (`done` once the flat tour is finished or skipped), `chore-score:me:<code>` (which housemate this device is: a roommate id, or `none` for "just looking"), `chore-score:house-cache:<code>` (last copy, shown while the server wakes). The old key `flatmate-ledger:household:v1` is only read to offer uploading pre-sharing data when creating a house (then `chore-score:legacy-imported` is set); never write or rename it.
-- "This is me": each device can say which housemate it is (`readMe`/`saveMe` in `lib/house.ts`, held in `HouseDashboard`). It is never sent to the server. `WhoAmI` asks once there are housemates (after the tour in the flat view; again if the chosen person is removed). Choosing someone also fills the chat name if this device has none. Effects: a red ring and "YOU" tag on your avatar, "Your room" on your door, your jobs on the flat's score card, a MINE filter on the chore board, and the Looks panel opening on you.
+- "This is me": each device can say which housemate it is (`readMe`/`saveMe` in `lib/house.ts`, held in `HouseDashboard`). It is never sent to the server. `WhoAmI` asks until answered, before anything else (also in an empty house, as "Add yourself first"); "I'm new here" adds a housemate and picks them in one go (refused if the name is taken or the house is full). In the flat view a new device goes: question → Looks sheet on that person ("Make it you") → the tour, which waits while the question or any sheet is showing. It asks again if the chosen person is removed or their add was refused. Choosing someone also fills the chat name if this device has none. Effects: a red ring and "YOU" tag on your avatar, "Your room" on your door, your jobs and your bill balance (`describeOwnBalance`) on the flat's score card, the bills panel and the kitchen table's label, a MINE filter on the chore board, and the Looks panel opening on you.
 - If a house returns 404 (wrong link, or data lost on a server without Upstash), the app goes back to the start screen and offers to recreate the house from the cached copy.
 
 ### Chores

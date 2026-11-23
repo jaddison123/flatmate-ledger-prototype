@@ -5,6 +5,8 @@ import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, ty
 import type { ChatActivity } from "../HomeChat";
 import type { Decor, Expense, Note, Roommate, SyncStatus } from "../../hooks/useHouseholdData";
 import { useModalFocus } from "../../hooks/useModalFocus";
+import PanelBoundary from "../PanelBoundary";
+import { computeBalances, describeOwnBalance } from "../../lib/bills";
 import { playSound, setSoundEnabled } from "../../lib/sfx";
 import { FlatTour, TOUR_STEPS, hasSeenTour, markTourSeen, tourStepFor } from "./FlatTour";
 import type { SceneChore } from "./liveParts";
@@ -97,8 +99,11 @@ export interface FlatViewProps {
   renderChat: (active: boolean, onActivity: (activity: ChatActivity) => void) => ReactNode;
   /** The housemate using this device, if they've said. */
   me: Roommate | null;
-  /** The "Which one are you?" card, while it should be asked (shown after the tour). */
-  whoAmI: ReactNode;
+  /**
+   * The "Which one are you?" card while it should be asked, or null. It comes before the tour;
+   * `onChosen` gets the chosen (or just added) housemate's id, so their look can open next.
+   */
+  whoAmI: ((onChosen: (id: string | null) => void) => ReactNode) | null;
   onUseListView: () => void;
 }
 
@@ -114,8 +119,13 @@ function FlatView(props: FlatViewProps) {
   const still = useMediaQuery("(prefers-reduced-motion: reduce)");
   const sheetRef = useRef<HTMLElement>(null);
 
-  // The first-visit tour: the step showing, or null. Never at the same time as a room sheet.
-  const [tour, setTour] = useState<number | null>(() => (hasSeenTour() ? null : 0));
+  // A new device's first minute: "Which one are you?" → make your avatar (the Looks sheet) →
+  // the tour. The question waits while a sheet is open, and the tour waits for the question.
+  const asking = props.whoAmI !== null && room === null;
+  // The first-visit tour's step, or null. `tour` is the step actually showing: it waits until
+  // the question is answered and any open sheet (e.g. making your avatar) is closed.
+  const [tourStep, setTour] = useState<number | null>(() => (hasSeenTour() ? null : 0));
+  const tour = asking || room !== null ? null : tourStep;
   const tourRoom = tour !== null ? TOUR_STEPS[tour].room : null;
 
   const closeRoom = useCallback(() => setRoom(null), []);
@@ -177,7 +187,9 @@ function FlatView(props: FlatViewProps) {
   const overdue = chores.filter((chore) => chore.isOverdue).length;
   const mine = props.me ? chores.filter((chore) => chore.assigneeId === props.me?.id) : [];
   const mineLeft = mine.filter((chore) => !chore.isComplete).length;
-  const asking = props.whoAmI !== null && tour === null && room === null;
+  const ownBalance = props.me && expenses.length > 0
+    ? describeOwnBalance(computeBalances(expenses).get(props.me.id) ?? 0)
+    : null;
   const badges: Record<RoomId, string> = {
     chores: chores.length - done > 0 ? String(chores.length - done) : "",
     league: "",
@@ -242,6 +254,7 @@ function FlatView(props: FlatViewProps) {
                 : "Your jobs are done this week ✓"}
             </p>
           )}
+          {ownBalance && <p className={`flat-mine own-balance-${ownBalance.tone}`}>{ownBalance.text}</p>}
         </div>
         <div className="flat-tools">
           <button
@@ -263,6 +276,7 @@ function FlatView(props: FlatViewProps) {
             className="flat-tool"
             type="button"
             onClick={() => (tour === null ? startTour() : endTour())}
+            disabled={asking}
             aria-pressed={tour !== null}
             aria-label={tour === null ? "Take the tour of the flat" : "End the tour"}
             title={tour === null ? "Take the tour" : "End the tour"}
@@ -297,7 +311,12 @@ function FlatView(props: FlatViewProps) {
       <p className="flat-hint" aria-hidden="true">Drag to move · scroll or pinch to zoom · click anything that grows</p>
 
       {tour !== null && <FlatTour step={tour} onStep={goToTourStep} onClose={endTour} />}
-      {asking && props.whoAmI}
+      {asking && props.whoAmI?.((id) => {
+        // Straight on to making their character.
+        if (!id) return;
+        setLookPerson(id);
+        setRoom("looks");
+      })}
 
       <aside
         ref={sheetRef}
@@ -316,10 +335,16 @@ function FlatView(props: FlatViewProps) {
           </button>
         </div>
         <div className="room-sheet-body">
-          {room === "looks" && renderLooks(lookPerson)}
-          {room && room !== "chat" && room !== "looks" && panels[room]}
+          {/* key: a panel that crashed gets a fresh start when you open another room. */}
+          {room && room !== "chat" && (
+            <PanelBoundary key={room} label={ROOMS[room].label.toLowerCase()}>
+              {room === "looks" ? renderLooks(lookPerson ?? props.me?.id ?? null) : panels[room]}
+            </PanelBoundary>
+          )}
           {/* The chat stays mounted (and connected) so the sofa can show new messages. */}
-          <div hidden={room !== "chat"}>{renderChat(room === "chat", setChat)}</div>
+          <div hidden={room !== "chat"}>
+            <PanelBoundary label="chat">{renderChat(room === "chat", setChat)}</PanelBoundary>
+          </div>
         </div>
       </aside>
     </section>

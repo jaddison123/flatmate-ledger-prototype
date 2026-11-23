@@ -26,6 +26,7 @@ import DecorPicker from "./components/DecorPicker";
 import LookPicker from "./components/LookPicker";
 import HouseLeague from "./components/HouseLeague";
 import WhoAmI from "./components/WhoAmI";
+import PanelBoundary from "./components/PanelBoundary";
 
 const THEME_KEY = "chore-score:theme";
 const VIEW_KEY = "chore-score:view";
@@ -101,17 +102,26 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
   // Which housemate uses this device ("This is me"). Kept only on this device, per house.
   const [meSaved, setMeSaved] = useState(() => readMe(houseCode));
   const me = roommates.find((person) => person.id === meSaved) ?? null;
-  // Ask once there's someone to choose, unless they said "just looking" (or chose someone
-  // who has since been removed: then ask again).
-  const askWhoAmI = roommates.length > 0 && me === null && meSaved !== NOT_ME;
+  // Ask until answered (also in an empty house: "add yourself first"), unless they said "just
+  // looking". Asked again if the chosen person has since been removed, or if adding yourself
+  // was refused by the server (the id never turns up).
+  const askWhoAmI = me === null && meSaved !== NOT_ME;
 
-  function chooseMe(id: string | null) {
+  /** `name` is given when the person was only just added (not in `roommates` yet). */
+  function chooseMe(id: string | null, name?: string) {
     const value = id ?? NOT_ME;
     saveMe(houseCode, value);
     setMeSaved(value);
-    const person = roommates.find((roommate) => roommate.id === id);
+    const personName = name ?? roommates.find((roommate) => roommate.id === id)?.name;
     // Fill in the chat name too, unless one was already chosen on this device.
-    if (person && !chatUsername.trim()) setChatUsername(person.name);
+    if (personName && !chatUsername.trim()) setChatUsername(personName);
+  }
+
+  /** "I'm new here": adds a housemate and makes them this device's "me". Returns their id. */
+  function addMe(name: string): string {
+    const id = addRoommate({ name });
+    chooseMe(id, name);
+    return id;
   }
 
   // Shown in the hero headline; falls back to the original tagline until a name is set.
@@ -216,7 +226,13 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
   );
   const notesBoard = <Notes notes={notes} onAdd={addNote} onRemove={removeNote} />;
   const billTracker = (
-    <BillTracker roommates={roommates} expenses={expenses} onAdd={addExpense} onRemove={removeExpense} />
+    <BillTracker
+      roommates={roommates}
+      expenses={expenses}
+      meId={me?.id ?? null}
+      onAdd={addExpense}
+      onRemove={removeExpense}
+    />
   );
   const houseSettings = (showRename: boolean) => (
     <HouseSettings
@@ -263,10 +279,20 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
               decor: <DecorPicker decor={decor} onChange={setDecor} />,
             }}
             renderLooks={(personId) => (
-              <LookPicker roommates={roommates} personId={personId ?? me?.id ?? null} onChange={setLook} />
+              <LookPicker roommates={roommates} personId={personId ?? me?.id ?? null} meId={me?.id ?? null} onChange={setLook} />
             )}
             me={me}
-            whoAmI={askWhoAmI ? <WhoAmI roommates={roommates} onChoose={chooseMe} variant="flat" /> : null}
+            whoAmI={askWhoAmI ? (onChosen) => (
+              <WhoAmI
+                roommates={roommates}
+                onChoose={(id) => {
+                  chooseMe(id);
+                  onChosen(id);
+                }}
+                onAddMe={(name) => onChosen(addMe(name))}
+                variant="flat"
+              />
+            ) : null}
             renderChat={(active, onActivity) => (
               <HomeChat
                 houseCode={houseCode}
@@ -384,19 +410,23 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
 
         {alerts}
 
-        {askWhoAmI && <WhoAmI roommates={roommates} onChoose={chooseMe} variant="list" />}
+        {askWhoAmI && (
+          <WhoAmI roommates={roommates} onChoose={(id) => chooseMe(id)} onAddMe={(name) => addMe(name)} variant="list" />
+        )}
 
-        {choreBoard}
+        <PanelBoundary label="chores">{choreBoard}</PanelBoundary>
 
-        {notesBoard}
+        <PanelBoundary label="notes">{notesBoard}</PanelBoundary>
 
         <section className="household-features" aria-label="Household tools">
-          {billTracker}
-          <HomeChat
-            houseCode={houseCode}
-            username={chatUsername}
-            onUsernameChange={setChatUsername}
-          />
+          <PanelBoundary label="bills">{billTracker}</PanelBoundary>
+          <PanelBoundary label="chat">
+            <HomeChat
+              houseCode={houseCode}
+              username={chatUsername}
+              onUsernameChange={setChatUsername}
+            />
+          </PanelBoundary>
         </section>
 
         <footer className="page-footer">

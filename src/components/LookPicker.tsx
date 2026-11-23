@@ -17,6 +17,8 @@ interface LookPickerProps {
   roommates: Roommate[];
   /** The housemate whose door (or avatar) was clicked. */
   personId: string | null;
+  /** The housemate using this device: their own look gets a "make it you" welcome. */
+  meId?: string | null;
   onChange: <P extends LookPart>(id: string, part: P, value: Look[P]) => void;
 }
 
@@ -218,7 +220,7 @@ function buildText(build: number): string {
   return build < LOOK_BUILD_MAX / 2 ? "More male" : "More female";
 }
 
-export default function LookPicker({ roommates, personId, onChange }: LookPickerProps) {
+export default function LookPicker({ roommates, personId, meId = null, onChange }: LookPickerProps) {
   const [selectedId, setSelectedId] = useState(personId);
   // The build slider's value while it is being dragged (not sent yet).
   const [draftBuild, setDraftBuild] = useState<number | null>(null);
@@ -235,12 +237,18 @@ export default function LookPicker({ roommates, personId, onChange }: LookPicker
   return (
     <section className="house-panel" aria-labelledby="look-panel-title">
       <p className="eyebrow"><span>☺</span> WHO LIVES HERE</p>
-      <h2 id="look-panel-title">Change their look<span className="heading-period">.</span></h2>
+      <h2 id="look-panel-title">
+        {person && person.id === meId ? "Make it you" : "Change their look"}<span className="heading-period">.</span>
+      </h2>
       {!person ? (
         <p className="decor-intro">No housemates yet. Add them at the front door, then come back to dress them up.</p>
       ) : (
         <>
-          <p className="decor-intro">Changes show up in everyone’s flat straight away.</p>
+          <p className="decor-intro">
+            {person.id === meId
+              ? "This is how you’ll walk around everyone’s flat. Changes show up for them straight away."
+              : "Changes show up in everyone’s flat straight away."}
+          </p>
           {roommates.length > 1 && (
             <div className="look-people" role="group" aria-label="Housemate">
               {roommates.map((roommate) => (

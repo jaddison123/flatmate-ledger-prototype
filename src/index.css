@@ -981,6 +981,40 @@ a {
   color: var(--red);
 }
 
+/* "This is me": your own balance, above everyone's. Green when owed, red when you owe. */
+.own-balance {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--muted);
+  background: var(--paper);
+  font-family: Impact, "Arial Narrow", sans-serif;
+  font-size: 20px;
+  text-transform: uppercase;
+}
+
+.own-balance-owe {
+  border-left-color: var(--red);
+  color: var(--red);
+}
+
+.own-balance-owed {
+  border-left-color: var(--green);
+  color: var(--green);
+}
+
+.flat-mine.own-balance-owe {
+  color: var(--red);
+}
+
+.flat-mine.own-balance-owed {
+  color: var(--green);
+}
+
+.flat-tag-own {
+  font-weight: 700;
+}
+
 .balance-empty {
   grid-column: 1 / -1;
   margin: 0;
@@ -2448,6 +2482,69 @@ a {
 .who-am-i-person .look-preview {
   width: 52px;
   height: 80px;
+}
+
+.who-am-i-new {
+  border-style: dashed;
+  align-content: center;
+}
+
+.who-am-i-plus {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  margin: 14px 0;
+  border-radius: 50%;
+  background: var(--red);
+  color: #fff;
+  font-size: 24px;
+}
+
+.who-am-i-add {
+  margin-top: 12px;
+}
+
+.who-am-i-add .add-chore-button {
+  white-space: nowrap;
+}
+
+.who-am-i-add .field-label {
+  display: block;
+  margin-bottom: 7px;
+}
+
+.who-am-i p.who-am-i-full {
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
+.flat-tool:disabled {
+  cursor: default;
+  opacity: .4;
+}
+
+/* PanelBoundary.tsx: shown in place of a panel that crashed. */
+.panel-error {
+  margin: 22px 0;
+  padding: 18px;
+  border: 1px dashed var(--red);
+  color: var(--ink);
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+}
+
+.panel-error h3 {
+  margin: 0 0 6px;
+  font-family: Impact, "Arial Narrow", sans-serif;
+  font-size: 22px;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+.panel-error p {
+  margin: 0 0 14px;
+  color: var(--muted);
 }
 
 /* Three classes: must beat .flat-tag.flat-initial, which comes later in this file. */

@@ -8,7 +8,7 @@ import { useCursor } from "@react-three/drei";
 import type { Group, Mesh, MeshStandardMaterial, PointLight } from "three";
 import type { ChatActivity } from "../HomeChat";
 import type { Chore, Decor, Expense, Note, Roommate, SyncStatus } from "../../hooks/useHouseholdData";
-import { computeBalances, formatMoney } from "../../lib/bills";
+import { computeBalances, describeOwnBalance, formatMoney } from "../../lib/bills";
 import { computeLeague, starOfTheWeek } from "../../lib/league";
 import { nameColour } from "../../lib/nameColour";
 import { Block, Cyl, Mat } from "./furniture";
@@ -252,8 +252,17 @@ export function Mirror({
 const COIN_GOLD = "#e8b93a";
 
 export function BillsTable({
-  p, style, expenses, roommates, still, onSelect,
-}: { p: ScenePalette; style: Decor["table"]; expenses: Expense[]; roommates: Roommate[]; still: boolean; onSelect: Select }) {
+  p, style, expenses, roommates, meId, still, onSelect,
+}: {
+  p: ScenePalette;
+  style: Decor["table"];
+  expenses: Expense[];
+  roommates: Roommate[];
+  /** The housemate using this device: their balance goes first in the label. */
+  meId: string | null;
+  still: boolean;
+  onSelect: Select;
+}) {
   const balances = useMemo(() => computeBalances(expenses), [expenses]);
   const total = expenses.reduce((sum, expense) => sum + Math.round(expense.amount * 100), 0);
   const newestDate = expenses.reduce((latest, expense) => (expense.date > latest ? expense.date : latest), "");
@@ -271,6 +280,9 @@ export function BillsTable({
       label={
         <>
           <b>Bills</b> · {formatMoney(total)} logged
+          {meId && roommates.some((person) => person.id === meId) && expenses.length > 0 && (
+            <span className="flat-tag-sub flat-tag-own">{describeOwnBalance(balances.get(meId) ?? 0).text}</span>
+          )}
           {people.map((person) => {
             const balance = balances.get(person.id) ?? 0;
             return (

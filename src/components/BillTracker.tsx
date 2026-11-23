@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from "react";
 import type { Expense, Roommate } from "../hooks/useHouseholdData";
-import { computeBalances, formatMoney, getShares } from "../lib/bills";
+import { computeBalances, describeOwnBalance, formatMoney, getShares } from "../lib/bills";
 
 interface BillTrackerProps {
   roommates: Roommate[];
   expenses: Expense[];
+  /** The housemate using this device, if known: their own balance is spelled out first. */
+  meId?: string | null;
   onAdd: (expense: Omit<Expense, "id">) => void;
   onRemove: (id: string) => void;
 }
@@ -30,6 +32,7 @@ function formatDate(value: string): string {
 function BillTracker({
   roommates,
   expenses,
+  meId = null,
   onAdd,
   onRemove,
 }: BillTrackerProps) {
@@ -43,6 +46,7 @@ function BillTracker({
 
   const roommateById = new Map(roommates.map((roommate) => [roommate.id, roommate]));
   const balances = computeBalances(expenses);
+  const own = meId && roommateById.has(meId) && expenses.length > 0 ? describeOwnBalance(balances.get(meId) ?? 0) : null;
 
   const balanceIds = [
     ...roommates.map((roommate) => roommate.id),
@@ -124,6 +128,8 @@ function BillTracker({
         Record who paid. Each bill is split evenly between the people you select.
       </p>
 
+      {own && <p className={`own-balance own-balance-${own.tone}`}>{own.text}</p>}
+
       <div className="bill-balances" aria-label="Housemate balances">
         {balanceIds.length === 0 ? (
           <p className="balance-empty">
@@ -135,7 +141,7 @@ function BillTracker({
           const balance = balances.get(id) ?? 0;
           return (
             <div className="balance-card" key={id}>
-              <span className="balance-name">{roommateName(id)}</span>
+              <span className="balance-name">{roommateName(id)}{id === meId ? " (you)" : ""}</span>
               <span className={`balance-value${balance < 0 ? " balance-owes" : ""}`}>
                 {balance > 0
                   ? `gets ${formatMoney(balance)} back`

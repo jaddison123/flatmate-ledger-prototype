@@ -22,6 +22,16 @@ export function getShares(expense: Expense): { id: string; cents: number }[] {
   }));
 }
 
+/**
+ * One person's balance in their own words, for the "This is me" summary. Positive = others
+ * owe them. The tone ("owe" / "owed") is returned too, so the UI can colour it.
+ */
+export function describeOwnBalance(pence: number): { tone: "owe" | "owed" | "square"; text: string } {
+  if (pence < 0) return { tone: "owe", text: `You owe ${formatMoney(-pence)}` };
+  if (pence > 0) return { tone: "owed", text: `You’re owed ${formatMoney(pence)}` };
+  return { tone: "square", text: "You’re all square" };
+}
+
 /** Net balance per person in pence: amount paid minus their share, over all bills. */
 export function computeBalances(expenses: Expense[]): Map<string, number> {
   const balances = new Map<string, number>();
