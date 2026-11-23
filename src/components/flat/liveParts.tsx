@@ -1,6 +1,7 @@
 // The parts of the flat that show the house's data and open a feature when clicked:
 // fridge (notes), kitchen table (bills), sofa and phone (chat), whiteboard (chores), TV (league),
-// front door and bedroom doors (house), bathroom mirror (decor), housemates' avatars, and the mess left by open chores.
+// front door and bedroom doors (house), bathroom mirror (decor), and the mess left by open chores.
+// The housemates' avatars are in Housemates.tsx.
 import { useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useCursor } from "@react-three/drei";
@@ -9,12 +10,12 @@ import type { ChatActivity } from "../HomeChat";
 import type { Chore, Decor, Expense, Note, Roommate, SyncStatus } from "../../hooks/useHouseholdData";
 import { computeBalances, formatMoney } from "../../lib/bills";
 import { computeLeague, starOfTheWeek } from "../../lib/league";
-import { initial, nameColour } from "../../lib/nameColour";
+import { nameColour } from "../../lib/nameColour";
 import { Block, Cyl, Mat } from "./furniture";
 import { Overlay } from "./Overlay";
 import type { ScenePalette } from "./palette";
 import {
-  AVATAR_SPOTS, FRONT_DOOR_SPOT, MAX_BEDROOM_DOORS, MESS_SPOTS, WHITEBOARD_ANGLE, WHITEBOARD_SPOT, messZone,
+  FRONT_DOOR_SPOT, MAX_BEDROOM_DOORS, MESS_SPOTS, WHITEBOARD_ANGLE, WHITEBOARD_SPOT, messZone,
   type MessZone, type RoomId, type Vec3,
 } from "./rooms";
 import { BODY_FONT, HEADING_FONT, fitText, useCanvasTexture } from "./textures";
@@ -24,9 +25,8 @@ type Select = (room: RoomId) => void;
 
 const DAY_MS = 86_400_000;
 const NOTE_COLOURS = ["#f6d55c", "#f4a6b8", "#a6dcb0", "#a7c7f2"];
-const SKIN_TONES = ["#f1c9a5", "#d9a066", "#a8714a", "#7a4b2f", "#e8b894"];
 
-function hashOf(text: string): number {
+export function hashOf(text: string): number {
   let hash = 0;
   for (const char of text) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return hash;
@@ -931,84 +931,6 @@ export function BedroomDoors({ p, roommates, onSelect }: { p: ScenePalette; room
           </mesh>
           <DoorPlate text={door.text} />
         </Hotspot>
-      ))}
-    </>
-  );
-}
-
-// ---------- Housemates' avatars ----------
-
-function Avatar({
-  person, at, hopKey, index, still, onSelect,
-}: { person: Roommate; at: Vec3; hopKey: number; index: number; still: boolean; onSelect: Select }) {
-  const body = useRef<Group>(null);
-  const seed = hashOf(person.id) % 100;
-  const hop = useRef<{ key: number; time: number | null }>({ key: hopKey, time: null });
-
-  useFrame(({ clock }) => {
-    const g = body.current;
-    if (!g) return;
-    const t = clock.elapsedTime;
-    if (hop.current.key !== hopKey) hop.current = { key: hopKey, time: t + index * 0.08 };
-    let y = still ? 0 : Math.sin(t * 2 + seed) * 0.025;
-    const start = hop.current.time;
-    if (start !== null && !still) {
-      const progress = (t - start) / 0.55;
-      if (progress > 0 && progress < 1) y += Math.sin(progress * Math.PI) * 0.45;
-    }
-    g.position.y = y;
-  });
-
-  const colour = nameColour(person.name);
-  const skin = SKIN_TONES[hashOf(person.name) % SKIN_TONES.length];
-
-  return (
-    <Hotspot
-      room="house"
-      at={at}
-      // Face the camera.
-      rotation={[0, Math.PI / 4 + ((seed % 5) - 2) * 0.15, 0]}
-      onSelect={onSelect}
-      tagHeight={1.8}
-      label={<b>{person.name}</b>}
-    >
-      <group ref={body}>
-        <mesh position={[0, 0.36, 0]} castShadow>
-          <cylinderGeometry args={[0.17, 0.26, 0.72, 6]} />
-          <Mat color={colour} />
-        </mesh>
-        <mesh position={[0, 0.93, 0]} castShadow>
-          <icosahedronGeometry args={[0.21, 0]} />
-          <Mat color={skin} />
-        </mesh>
-        {/* Eyes and a hat-like tuft of hair in a darker shade. */}
-        <Block size={[0.04, 0.05, 0.02]} at={[-0.07, 0.94, 0.18]} color="#1c1c1c" shadow={false} />
-        <Block size={[0.04, 0.05, 0.02]} at={[0.07, 0.94, 0.18]} color="#1c1c1c" shadow={false} />
-        <mesh position={[0, 1.1, -0.02]} castShadow>
-          <coneGeometry args={[0.17, 0.16, 5]} />
-          <Mat color={["#2b2118", "#6b4a2b", "#c9a15a", "#1d1d1d", "#8a3b2a"][seed % 5]} />
-        </mesh>
-        <Tag position={[0, 1.35, 0]} className="flat-initial">{initial(person.name)}</Tag>
-      </group>
-    </Hotspot>
-  );
-}
-
-export function Avatars({
-  roommates, hopKey, still, onSelect,
-}: { roommates: Roommate[]; hopKey: number; still: boolean; onSelect: Select }) {
-  return (
-    <>
-      {roommates.slice(0, AVATAR_SPOTS.length).map((person, index) => (
-        <Avatar
-          key={person.id}
-          person={person}
-          at={AVATAR_SPOTS[index]}
-          hopKey={hopKey}
-          index={index}
-          still={still}
-          onSelect={onSelect}
-        />
       ))}
     </>
   );

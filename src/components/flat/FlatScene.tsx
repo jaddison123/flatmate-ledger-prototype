@@ -9,9 +9,10 @@ import type { Decor, Expense, Note, Roommate, SyncStatus } from "../../hooks/use
 import { playSound } from "../../lib/sfx";
 import { Bathroom, FlatShell, Hallway, Kitchen, LivingRoom } from "./furniture";
 import {
-  Avatars, BedroomDoors, BillsTable, Burst, ChatCorner, FrontDoor, Fridge, Mess, Mirror, Television,
+  BedroomDoors, BillsTable, Burst, ChatCorner, FrontDoor, Fridge, Mess, Mirror, Television,
   WheelieBin, Whiteboard, layoutMess, type SceneChore,
 } from "./liveParts";
+import { Housemates, type Cheer } from "./Housemates";
 import { readPalette, withDecor, type ScenePalette } from "./palette";
 import { ROOMS, type RoomId, type Vec3 } from "./rooms";
 
@@ -164,6 +165,7 @@ function Flat(props: FlatSceneProps & { p: ScenePalette }) {
   const previousAssignees = useRef<string | null>(null);
   const [bursts, setBursts] = useState<BurstItem[]>([]);
   const [shuffleKey, setShuffleKey] = useState(0);
+  const [cheers, setCheers] = useState<Cheer>({ key: 0, ids: [] });
   const nextBurstId = useRef(0);
 
   useEffect(() => {
@@ -171,15 +173,19 @@ function Flat(props: FlatSceneProps & { p: ScenePalette }) {
     const done = new Map(chores.map((chore) => [chore.id, chore.isComplete]));
     if (previousDone.current) {
       const fresh: BurstItem[] = [];
+      const doers: string[] = [];
       for (const chore of chores) {
         const spot = messSpots.current.get(chore.id);
         if (chore.isComplete && previousDone.current.get(chore.id) === false && spot) {
           fresh.push({ id: nextBurstId.current++, at: spot });
+          if (chore.assigneeId) doers.push(chore.assigneeId);
         }
       }
       if (fresh.length > 0) {
         playSound("sparkle");
         if (!still) setBursts((current) => [...current, ...fresh]);
+        // Whoever did it does a little hop of pride.
+        if (doers.length > 0) setCheers((current) => ({ key: current.key + 1, ids: doers }));
       }
     }
     previousDone.current = done;
@@ -214,7 +220,17 @@ function Flat(props: FlatSceneProps & { p: ScenePalette }) {
       <Whiteboard p={p} style={decor.board} chores={chores} roommates={roommates} shuffleKey={shuffleKey} still={still} onSelect={onSelect} />
       <FrontDoor p={p} style={decor.frontDoor} householdName={props.householdName} status={props.status} still={still} onSelect={onSelect} />
       <BedroomDoors p={p} roommates={roommates} onSelect={onSelect} />
-      <Avatars roommates={roommates} hopKey={shuffleKey} still={still} onSelect={onSelect} />
+      <Housemates
+        roommates={roommates}
+        chores={chores}
+        expenses={props.expenses}
+        sofa={decor.sofa}
+        chat={props.chat}
+        hopKey={shuffleKey}
+        cheers={cheers}
+        still={still}
+        onSelect={onSelect}
+      />
       <Mess p={p} chores={chores} roommates={roommates} still={still} onSelect={onSelect} />
 
       {bursts.map((burst) => (

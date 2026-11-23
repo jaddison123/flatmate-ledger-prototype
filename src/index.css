@@ -2239,6 +2239,22 @@ a {
   box-shadow: none;
 }
 
+/* A housemate's emoji bubble, sitting above their head (the anchor is its bottom-centre). */
+.flat-overlay > .flat-emote {
+  transform: translate(-50%, -100%);
+}
+
+.flat-emote-text {
+  display: block;
+  padding: 3px 7px 4px;
+  border-radius: 12px 12px 12px 3px;
+  background: #fff;
+  font-size: 17px;
+  line-height: 1.2;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 22%);
+  animation: flat-pop 260ms ease-out;
+}
+
 .flat-chat-bubble {
   display: flex;
   align-items: center;
@@ -2636,7 +2652,8 @@ a {
 
 @media (prefers-reduced-motion: reduce) {
   .room-sheet,
-  .flat-chat-bubble {
+  .flat-chat-bubble,
+  .flat-emote-text {
     animation: none;
   }
 }
