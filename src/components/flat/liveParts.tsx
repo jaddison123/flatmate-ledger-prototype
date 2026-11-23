@@ -13,7 +13,10 @@ import { initial, nameColour } from "../../lib/nameColour";
 import { Block, Cyl, Mat } from "./furniture";
 import { Overlay } from "./Overlay";
 import type { ScenePalette } from "./palette";
-import { AVATAR_SPOTS, MAX_BEDROOM_DOORS, MESS_SPOTS, WHITEBOARD_SPOT, messZone, type MessZone, type RoomId, type Vec3 } from "./rooms";
+import {
+  AVATAR_SPOTS, FRONT_DOOR_SPOT, MAX_BEDROOM_DOORS, MESS_SPOTS, WHITEBOARD_ANGLE, WHITEBOARD_SPOT, messZone,
+  type MessZone, type RoomId, type Vec3,
+} from "./rooms";
 import { BODY_FONT, HEADING_FONT, fitText, useCanvasTexture } from "./textures";
 
 export type SceneChore = Chore & { isComplete: boolean; isOverdue: boolean };
@@ -440,7 +443,7 @@ export function ChatCorner({
   );
 }
 
-// ---------- Chores: the whiteboard on the bedroom landing ----------
+// ---------- Chores: the whiteboard in the hallway ----------
 
 /** What the chore board stands on: an easel, an A-frame, or a pair of metal poles. */
 function BoardStand({ p, style }: { p: ScenePalette; style: Decor["board"] }) {
@@ -581,9 +584,9 @@ export function Whiteboard({
   return (
     <Hotspot
       room="chores"
-      // On the landing outside the bedrooms, angled towards the camera.
+      // In the hallway by the low wall to the landing, turned to face whoever comes in the front door.
       at={WHITEBOARD_SPOT}
-      rotation={[0, Math.PI / 4, 0]}
+      rotation={[0, WHITEBOARD_ANGLE, 0]}
       onSelect={onSelect}
       tagHeight={2.4}
       label={<><b>Chore board</b> · {chores.filter((chore) => !chore.isComplete).length} to do</>}
@@ -810,7 +813,7 @@ export function FrontDoor({
   return (
     <Hotspot
       room="house"
-      at={[4.5, 0, 5.1]}
+      at={FRONT_DOOR_SPOT}
       onSelect={onSelect}
       tagHeight={2.9}
       label={<><b>Front door</b> · housemates &amp; invite<span className="flat-tag-sub">{statusText[status]}</span></>}

@@ -28,7 +28,7 @@ export interface RoomInfo {
 }
 
 export const ROOMS: Record<RoomId, RoomInfo> = {
-  chores: { label: "Chores", place: "Landing whiteboard", icon: "✳", focus: [3.9, 1.3, -2.1], zoom: 2.4 },
+  chores: { label: "Chores", place: "Hallway whiteboard", icon: "✳", focus: [3.2, 1.3, -0.3], zoom: 2.4 },
   league: { label: "League", place: "Living room TV", icon: "♛", focus: [-6.2, 1, 2], zoom: 2.3 },
   notes: { label: "Notes", place: "Kitchen fridge", icon: "✎", focus: [-6, 1.2, -2.3], zoom: 2.3 },
   bills: { label: "Bills", place: "Kitchen table", icon: "£", focus: [-3.2, 0.8, -2.2], zoom: 2.3 },
@@ -60,11 +60,11 @@ export function messZone(title: string): MessZone {
 export const MESS_SPOTS: Record<MessZone, Vec3[]> = {
   kitchen: [[-3.9, 0.98, -4.6], [-2.9, 0.98, -4.6], [-4.9, 0.98, -4.6], [-5, 0, -3.3]],
   bathroom: [[0.4, 0.01, -3.3], [1.8, 0.01, -2.4], [0, 0.01, -2.2], [2.2, 0.01, -3.5]],
-  // Kept clear of the whiteboard on the landing (WHITEBOARD_SPOT).
-  laundry: [[4.6, 0, -3.9], [5.6, 0, -2.6], [6.2, 0, -1.9], [6.3, 0, -3.6]],
+  laundry: [[4.2, 0, -3.2], [5.6, 0, -2.6], [4.8, 0, -1.8], [6.3, 0, -3.6]],
   bins: [[5.6, 0, 5.95], [6.2, 0, 4.2], [5.6, 0, 3.4], [6.5, 0, 3.1]],
   living: [[-2, 0, 0.9], [-4.1, 0, 3.6], [-1.6, 0, 2.6], [-5.9, 0, 0.6]],
-  general: [[2, 0, 4.4], [4, 0, 0.2], [5.8, 0, 1.6], [2.2, 0, -0.4]],
+  // Kept clear of the whiteboard (WHITEBOARD_SPOT).
+  general: [[2, 0, 4.4], [4.6, 0, 0.8], [5.8, 0, 1.6], [1.8, 0, 1.4]],
 };
 
 /** Where housemates' avatars hang out (living room). */
@@ -76,5 +76,11 @@ export const AVATAR_SPOTS: Vec3[] = [
 /** Bedroom doors along the back wall of the landing. */
 export const MAX_BEDROOM_DOORS = 4;
 
-/** The chore whiteboard's easel, on the landing outside the bedrooms. */
-export const WHITEBOARD_SPOT: Vec3 = [3.9, 0, -2.1];
+/** The chore whiteboard, in the hallway against the low wall to the bedroom landing. */
+export const WHITEBOARD_SPOT: Vec3 = [3.2, 0, -0.3];
+
+/** Where the front door stands (the house settings hotspot). */
+export const FRONT_DOOR_SPOT: Vec3 = [4.5, 0, 5.1];
+
+/** Turns the whiteboard (which faces +z when unrotated) to face the front door. */
+export const WHITEBOARD_ANGLE = Math.atan2(FRONT_DOOR_SPOT[0] - WHITEBOARD_SPOT[0], FRONT_DOOR_SPOT[2] - WHITEBOARD_SPOT[2]);

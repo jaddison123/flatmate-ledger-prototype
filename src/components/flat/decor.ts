@@ -80,7 +80,7 @@ export const DECOR_SLOTS: { [S in DecorSlot]: DecorSlotInfo<S> } = {
   },
   board: {
     label: "Chore board",
-    where: "Landing · chores",
+    where: "Hallway · chores",
     options: { whiteboard: "Whiteboard", chalkboard: "Chalkboard", cork: "Corkboard" },
     swatches: { whiteboard: "#fbfbf8", chalkboard: "#2e4136", cork: "#c89b62" },
   },
