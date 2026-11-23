@@ -10,6 +10,10 @@ const apiProxy = {
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    // The 3D flat (three.js) is one lazy-loaded chunk of about 1 MB (260 kB gzipped).
+    chunkSizeWarningLimit: 1100,
+  },
   server: {
     proxy: {
       "/api": apiProxy,

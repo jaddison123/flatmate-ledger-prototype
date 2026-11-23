@@ -14,16 +14,22 @@ A student-project prototype for university students sharing a rented home. It tr
 ## Stack and constraints
 
 - React 19 + TypeScript + Vite, Tailwind CSS v4 (via `@tailwindcss/vite`), plus a plain Node chat server (`server.mjs`) that uses only built-ins.
+- The 3D flat uses `three`, `@react-three/fiber` and `@react-three/drei` (only `OrbitControls` and `useCursor`): the one deliberate exception to the minimal-dependency rule. It is lazy-loaded (`FlatScene` chunk, ~260 kB gzipped) so the start screen and list view never download it.
 - Keep the dependency list minimal: do not add libraries for things the platform or a few lines of code can do (for example `dev.mjs` replaces `concurrently`).
 - Keep code modular, clean and commented where the reason is not obvious. Match the existing style: functional components, typed props, small helper functions at the top of the file.
-- Most styling is hand-written in `src/index.css` using CSS variables (`--red`, `--ink`, `--muted`, `--line`, `--paper`...). Reuse those variables so light and dark mode both work. Chat styles are prefixed `wa-`.
+- Most styling is hand-written in `src/index.css` using CSS variables (`--red`, `--ink`, `--muted`, `--line`, `--paper`...). Reuse those variables so light and dark mode both work. Chat styles are prefixed `wa-`, 3D flat styles `flat-` / `room-sheet`.
 
 ## Architecture
 
 ```
 src/
   main.tsx                 entry point
-  App.tsx                  App (theme, which house) + HouseDashboard (hero, chore board, housemates dialog with invite link)
+  App.tsx                  App (theme, view, which house) + HouseDashboard (flat view, or list view with hero + housemates dialog)
+  lib/week.ts, lib/bills.ts, lib/nameColour.ts, lib/sfx.ts   week keys, bill maths, person colours, Web Audio blips
+  hooks/useModalFocus.ts     Escape / Tab trap / focus return for dialogs and the room sheet
+  components/ChoreBoard.tsx  chore list, filters, add form, rotate button (used by both views)
+  components/HouseSettings.tsx housemates, invite link, rename, leave (list dialog and the flat's front door)
+  components/flat/           the 3D flat (see "3D flat" below)
   hooks/useHouseholdData.ts  a house's shared data, synced with the server (optimistic actions + SSE)
   lib/house.ts               house codes, invite links, per-device localStorage, apiRequest helper
   components/HouseGate.tsx   start / join a house (offers to upload old per-browser data)
@@ -45,7 +51,7 @@ dev.mjs                    runs vite + server together
 - **To add a new kind of change**: add a case to `applyAction`, its type to `HouseholdAction` in `household.d.mts`, and a method in `useHouseholdData`. **To add a field**: add it to the validator and to `normalizeHousehold` with a default, so already-saved houses keep loading.
 - Removals of things already gone return the same object, so the server treats them as no change.
 - `removeRoommate` also unassigns their chores, server side, in one step.
-- Per device (localStorage): `chore-score:house` (current code), `chore-score:chat-name`, `chore-score:theme`, `chore-score:house-cache:<code>` (last copy, shown while the server wakes). The old key `flatmate-ledger:household:v1` is only read to offer uploading pre-sharing data when creating a house (then `chore-score:legacy-imported` is set); never write or rename it.
+- Per device (localStorage): `chore-score:house` (current code), `chore-score:chat-name`, `chore-score:theme`, `chore-score:view` (`flat`/`list`), `chore-score:sound` (`on`/`off`), `chore-score:house-cache:<code>` (last copy, shown while the server wakes). The old key `flatmate-ledger:household:v1` is only read to offer uploading pre-sharing data when creating a house (then `chore-score:legacy-imported` is set); never write or rename it.
 - If a house returns 404 (wrong link, or data lost on a server without Upstash), the app goes back to the start screen and offers to recreate the house from the cached copy.
 
 ### Chores
@@ -65,6 +71,15 @@ dev.mjs                    runs vite + server together
 - Chat names belong to one device. Each device has a random secret in localStorage (`chore-score:member-token`), sent as `token` with every chat POST; the server keeps only its SHA-256 hash in the house's `members` (saved with the chat as `{ messages, members }`). `POST .../chat/name` claims a name (HomeChat calls it 700 ms after typing stops); sending or reacting with a name held by another device returns 409, and read/typing from a non-holder are ignored. Names match case- and space-insensitively. A name used to send or react is marked `used` and stays reserved for that device permanently (so old messages can't be impersonated); names only typed, never used, are released when the device switches name.
 - Messages carry `senderId` (first 16 hex chars of the hash); HomeChat decides "my message" by `senderId`, not by name, so renaming doesn't flip whose messages look like yours.
 - There are no accounts: anyone with the invite link can join under a free name. Clearing site data, or using a second device, means picking a different name.
+
+### 3D flat (`src/components/flat/`)
+- The default view when WebGL works (`hasWebGL()`); the top bar's FLAT/LIST button switches, and a crash in the scene offers the list view. Both views use the same feature components.
+- `FlatView.tsx` (small, not lazy): score card, room buttons (the keyboard/screen-reader way in), and the `room-sheet` dialog (side sheet ≥ 760 px wide, bottom sheet on phones) showing the open room's component. HomeChat stays mounted (hidden) so the scene can show chat activity; it only sends read receipts while `active`, and reports `ChatActivity` via `onActivity`.
+- `FlatScene.tsx` (lazy): `Canvas` with an orthographic isometric camera. `CameraRig` flies to `ROOMS[room].focus`/`zoom` and offsets so the room stays clear of the sheet; OrbitControls only pans/zooms (no rotation). Also detects chores being completed (sparkle burst) and roster rotations (avatars hop, whiteboard wobbles) by comparing with the previous render.
+- `rooms.ts` (no three.js): room → feature map, the floor plan in world units, `messZone()` (guesses where a chore's mess goes from keywords in its title) and the mess / avatar spots. Feature → place: chores = hallway whiteboard + TV score, notes = fridge magnets, bills = kitchen table (envelopes, coin stacks per housemate), chat = sofa + phone + speech bubble, house = front door (porch light = connection status, doormat = house name) and bedroom doors (one per housemate).
+- `furniture.tsx` static flat from primitives (`Block` is positioned by its bottom-centre); `liveParts.tsx` data-driven, clickable parts (`Hotspot`). Text on objects is drawn to canvas textures (`textures.ts`); floating labels use `Overlay.tsx`, not drei `<Html>` (which threw `removeChild` errors when the scene unmounted).
+- Colours: `palette.ts` reads `--red`, `--green`, etc. from `.app-shell`, so night (dark mode: lamps on, moonlight) and day follow the theme.
+- `prefers-reduced-motion` turns off camera flights, bobbing, pulses and bursts. Sound effects (`lib/sfx.ts`) are off unless the user turns them on.
 
 ## Deployment
 

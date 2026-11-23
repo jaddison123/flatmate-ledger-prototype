@@ -1,20 +1,12 @@
 import { useState, type FormEvent } from "react";
 import type { Expense, Roommate } from "../hooks/useHouseholdData";
+import { computeBalances, formatMoney, getShares } from "../lib/bills";
 
 interface BillTrackerProps {
   roommates: Roommate[];
   expenses: Expense[];
   onAdd: (expense: Omit<Expense, "id">) => void;
   onRemove: (id: string) => void;
-}
-
-const currency = new Intl.NumberFormat("en-GB", {
-  style: "currency",
-  currency: "GBP",
-});
-
-function formatMoney(cents: number): string {
-  return currency.format(cents / 100);
 }
 
 function getLocalDateValue(date: Date): string {
@@ -35,20 +27,6 @@ function formatDate(value: string): string {
       }).format(date);
 }
 
-function getShares(expense: Expense): { id: string; cents: number }[] {
-  const participantIds = [...new Set(expense.splitBetweenIds)];
-  if (participantIds.length === 0) return [];
-
-  const totalCents = Math.round(expense.amount * 100);
-  const baseShare = Math.floor(totalCents / participantIds.length);
-  const remainder = totalCents % participantIds.length;
-
-  return participantIds.map((id, index) => ({
-    id,
-    cents: baseShare + (index < remainder ? 1 : 0),
-  }));
-}
-
 function BillTracker({
   roommates,
   expenses,
@@ -64,18 +42,7 @@ function BillTracker({
   const [formError, setFormError] = useState("");
 
   const roommateById = new Map(roommates.map((roommate) => [roommate.id, roommate]));
-  const balances = new Map<string, number>();
-
-  for (const expense of expenses) {
-    const totalCents = Math.round(expense.amount * 100);
-    balances.set(
-      expense.paidById,
-      (balances.get(expense.paidById) ?? 0) + totalCents,
-    );
-    for (const share of getShares(expense)) {
-      balances.set(share.id, (balances.get(share.id) ?? 0) - share.cents);
-    }
-  }
+  const balances = computeBalances(expenses);
 
   const balanceIds = [
     ...roommates.map((roommate) => roommate.id),

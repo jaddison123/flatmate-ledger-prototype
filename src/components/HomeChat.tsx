@@ -1,11 +1,28 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { apiRequest, readMemberToken } from "../lib/house";
+import { nameColour } from "../lib/nameColour";
 
 interface HomeChatProps {
   /** Each house has its own chat under /api/houses/<code>/chat. */
   houseCode: string;
   username: string;
   onUsernameChange: (username: string) => void;
+  /**
+   * False while the chat is mounted but hidden (the 3D flat keeps it connected in the
+   * background): read receipts are only sent while it is on screen.
+   */
+  active?: boolean;
+  /** Told about unread messages, who is typing and the latest message (for the 3D flat). */
+  onActivity?: (activity: ChatActivity) => void;
+}
+
+/** A summary of what is happening in the chat, for views outside the chat panel. */
+export interface ChatActivity {
+  /** False until the message history has arrived (so loading it isn't mistaken for news). */
+  ready: boolean;
+  unread: number;
+  typing: string[];
+  latest: { id: string; username: string; text: string; own: boolean } | null;
 }
 
 interface ChatMessage {
@@ -27,15 +44,6 @@ const EMOJI_PICKER = [
   "👍", "👏", "🙌", "🙏", "💪", "🎉", "🔥", "❤️",
   "🧹", "🗑️", "🍕", "☕", "🍺", "🛒", "💸", "✅",
 ];
-// Name colours, picked deterministically per username (like WhatsApp groups).
-const NAME_COLOURS = ["#6d4bd1", "#e0682e", "#1f8a70", "#c2377a", "#2b7bbd", "#a37a00"];
-
-function nameColour(name: string): string {
-  let hash = 0;
-  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return NAME_COLOURS[hash % NAME_COLOURS.length];
-}
-
 function formatChatTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
@@ -82,7 +90,7 @@ function postJson(path: string, body: Record<string, unknown>): Promise<Response
 /** How long the name must stay unchanged before it is claimed, so typing doesn't claim "J", "Ju"... */
 const NAME_CLAIM_DELAY_MS = 700;
 
-function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
+function HomeChat({ houseCode, username, onUsernameChange, active = true, onActivity }: HomeChatProps) {
   const api = `/api/houses/${houseCode}/chat`;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionState, setConnectionState] = useState<
@@ -95,6 +103,7 @@ function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<Record<string, number>>({});
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesRef = useRef<HTMLOListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastTypingPost = useRef(0);
@@ -150,6 +159,7 @@ function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
           throw new Error("The chat server sent an invalid message history.");
         }
         setMessages(history.slice(-200));
+        setHistoryLoaded(true);
         setConnectionError("");
       } catch (error) {
         console.error("Could not read chat history:", error);
@@ -218,14 +228,37 @@ function HomeChat({ houseCode, username, onUsernameChange }: HomeChatProps) {
   useEffect(() => {
     const list = messagesRef.current;
     if (list) list.scrollTop = list.scrollHeight;
-  }, [messages.length, typingNames.length]);
+  }, [messages.length, typingNames.length, active]);
 
-  // Send a read receipt when there are messages from others we haven't seen.
+  // Send a read receipt when there are messages from others we haven't seen (only while shown).
   const hasUnread = nameIsMine && messages.some((m) => !(m.readBy ?? []).includes(me));
   useEffect(() => {
-    if (!hasUnread) return;
+    if (!hasUnread || !active) return;
     postJson(`${api}/read`, { username: me }).catch(() => undefined);
-  }, [api, hasUnread, me, messages.length]);
+  }, [api, hasUnread, me, messages.length, active]);
+
+  // Report activity to the parent. Unread counts need a claimed name (read receipts are by name).
+  const unreadCount = nameIsMine
+    ? messages.filter((m) => !isOwn(m) && !(m.readBy ?? []).includes(me)).length
+    : 0;
+  const latestMessage = messages.at(-1) ?? null;
+  const latestOwn = latestMessage ? isOwn(latestMessage) : false;
+  // A string key, so the effect below only runs when the list of names actually changes.
+  const typingKey = JSON.stringify(typingNames);
+  useEffect(() => {
+    onActivity?.({
+      ready: historyLoaded,
+      unread: unreadCount,
+      typing: JSON.parse(typingKey) as string[],
+      latest: latestMessage && {
+        id: latestMessage.id,
+        username: latestMessage.username,
+        text: latestMessage.text,
+        own: latestOwn,
+      },
+    });
+    // latestMessage is identified by its id; the object itself changes on every reaction.
+  }, [onActivity, historyLoaded, unreadCount, typingKey, latestMessage?.id, latestOwn]);
 
   async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
