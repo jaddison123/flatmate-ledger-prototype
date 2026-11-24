@@ -26,7 +26,8 @@ const NO_CHAT: ChatActivity = { ready: false, unread: 0, typing: [], latest: nul
 
 /** How long a speech bubble stays up: long enough to read, capped so it doesn't linger. */
 function bubbleMs(text: string): number {
-  return Math.min(9000, 3000 + text.length * 60);
+  // Plus a moment for it to type itself out (at most 1.4 s).
+  return Math.min(10000, 3500 + text.length * 60);
 }
 
 /** True if this browser can draw WebGL (checked once). */
@@ -202,7 +203,8 @@ function FlatView(props: FlatViewProps) {
       if (!latest.own) setRecent(latest);
       return;
     }
-    if (!latest.own) playSound("message");
+    // The bubble's typing blips are its sound; without motion it types out at once, so chime.
+    if (!latest.own && still) playSound("message");
     setBubbles((current) => ({
       ...current,
       [speaker.id]: { key: latest.id, text: latest.text, until: Date.now() + bubbleMs(latest.text) },

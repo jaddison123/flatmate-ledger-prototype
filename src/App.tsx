@@ -12,6 +12,7 @@ import {
   saveMe,
 } from "./lib/house";
 import { formatWeek, getWeekStart, toDateInputValue } from "./lib/week";
+import { sameName } from "./lib/chat";
 import { hasHouseholdContent } from "../shared/household.mjs";
 import BillTracker from "./components/BillTracker";
 import ChoreBoard from "./components/ChoreBoard";
@@ -113,9 +114,21 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
     saveMe(houseCode, value);
     setMeSaved(value);
     const personName = name ?? roommates.find((roommate) => roommate.id === id)?.name;
-    // Fill in the chat name too, unless one was already chosen on this device.
-    if (personName && !chatUsername.trim()) setChatUsername(personName);
+    // Chat as them too, so the log matches the names on the avatars (it can still be changed).
+    if (personName) setChatUsername(personName);
   }
+
+  // A chat name that is the housemate's name spelt differently ("sam" for "Sam") takes their
+  // spelling. The server sees both as the same name, so this device keeps holding it. Checked
+  // when the page opens or "me" changes, not while typing (that would eat the space in "Sam S").
+  const meName = me?.name ?? "";
+  const latestChatName = useRef(chatUsername);
+  latestChatName.current = chatUsername;
+  useEffect(() => {
+    const current = latestChatName.current;
+    if (meName && current !== meName && sameName(current, meName)) setChatUsername(meName);
+    // Only on "me" changing; setChatUsername is a new function each render.
+  }, [meName]);
 
   /** "I'm new here": adds a housemate and makes them this device's "me". Returns their id. */
   function addMe(name: string): string {

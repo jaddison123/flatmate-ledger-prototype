@@ -2761,6 +2761,11 @@ a {
   overflow-wrap: anywhere;
 }
 
+/* Letters still to be "said": they hold the bubble's size but aren't shown yet. */
+.flat-say-unsaid {
+  visibility: hidden;
+}
+
 .flat-say-typing .wa-dots {
   display: block;
   padding: 2px 0;

@@ -11,6 +11,7 @@ import type { Decor, Expense, Roommate } from "../../hooks/useHouseholdData";
 import { computeBalances } from "../../lib/bills";
 import { computeLeague, starOfTheWeek } from "../../lib/league";
 import { initial, nameColour } from "../../lib/nameColour";
+import { playBlip } from "../../lib/sfx";
 import { Avatar } from "./Avatar";
 import { Block, Cyl, Mat } from "./furniture";
 import { Hotspot, Tag, hashOf, type SceneChore, type Select } from "./liveParts";
@@ -98,19 +99,65 @@ function HeldThings({ refs }: { refs: { current: Partial<Record<Prop, Group | nu
   );
 }
 
-/** The bubble over a speaker's head: their name, then the message (or "…" while typing). */
-function SayBubble({ name, bubble }: { name: string; bubble: SpeechBubble | undefined }) {
+// Bubbles type themselves out like a game's dialogue: one letter every LETTER_MS, but always
+// done within REVEAL_MS, with a "voice" blip every BLIP_MS or so (only if sound is on).
+const LETTER_MS = 40;
+const REVEAL_MS = 1400;
+const BLIP_MS = 70;
+const SPEAKS = /[\p{L}\p{N}]/u;
+
+/** Each housemate's voice: a pitch picked from their id, so it's the same on every device. */
+function voicePitch(id: string): number {
+  return 190 + (hashOf(id) % 8) * 35;
+}
+
+/**
+ * The bubble over a speaker's head: their name, then the message (or "…" while typing). The
+ * unrevealed letters are laid out but invisible, so the bubble doesn't grow as it types.
+ */
+function SayBubble({ id, name, bubble, still }: { id: string; name: string; bubble: SpeechBubble | undefined; still: boolean }) {
+  const text = bubble?.text ?? "";
+  // By code point, so an emoji isn't split in half.
+  const letters = useMemo(() => Array.from(text), [text]);
+  const [shown, setShown] = useState(still ? letters.length : 0);
+
+  useEffect(() => {
+    if (still || letters.length === 0) {
+      setShown(letters.length);
+      return;
+    }
+    const step = Math.min(LETTER_MS, REVEAL_MS / letters.length);
+    const pitch = voicePitch(id);
+    let count = 0;
+    let lastBlip = -Infinity;
+    const timer = window.setInterval(() => {
+      count += 1;
+      setShown(count);
+      const letter = letters[count - 1];
+      if (SPEAKS.test(letter) && count * step - lastBlip >= BLIP_MS) {
+        lastBlip = count * step;
+        playBlip(pitch, (letter.codePointAt(0)! % 7) / 6);
+      }
+      if (count >= letters.length) window.clearInterval(timer);
+    }, step);
+    return () => window.clearInterval(timer);
+  }, [letters, id, still]);
+
   return (
     <span
-      key={bubble?.key ?? "typing"}
       className={`flat-say-bubble${bubble ? "" : " flat-say-typing"}`}
       style={{ "--who": nameColour(name) } as CSSProperties}
       aria-hidden="true"
     >
       <b>{name}<span className="flat-say-arrow" /></b>
-      {bubble
-        ? <span className="flat-say-text">{bubble.text}</span>
-        : <span className="wa-dots"><i /><i /><i /></span>}
+      {bubble ? (
+        <span className="flat-say-text">
+          {letters.slice(0, shown).join("")}
+          {shown < letters.length && <span className="flat-say-unsaid">{letters.slice(shown).join("")}</span>}
+        </span>
+      ) : (
+        <span className="wa-dots"><i /><i /><i /></span>
+      )}
     </span>
   );
 }
@@ -213,7 +260,8 @@ function Housemate({
           )}
           {(bubble || typing) && !ui.hidden && (
             <Overlay position={SAY_AT} className="flat-say" keepOnScreen={SAY_MARGINS}>
-              <SayBubble name={person.name} bubble={bubble} />
+              {/* key: a new message starts typing out from the beginning. */}
+              <SayBubble key={bubble?.key ?? "typing"} id={person.id} name={person.name} bubble={bubble} still={still} />
             </Overlay>
           )}
           {ui.emote && !ui.hidden && !bubble && !typing && (

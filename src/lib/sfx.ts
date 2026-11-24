@@ -33,8 +33,19 @@ const SOUNDS: Record<SoundKind, { wave: OscillatorType; notes: [number, number, 
 };
 
 export function playSound(kind: SoundKind) {
+  playNotes(SOUNDS[kind].wave, SOUNDS[kind].notes);
+}
+
+/**
+ * One soft "voice" blip, for speech bubbles that type themselves out. `pitch` (Hz) is the
+ * speaker's voice; `wobble` (0..1) nudges each letter up or down a little so it sounds like talk.
+ */
+export function playBlip(pitch: number, wobble: number) {
+  playNotes("square", [[pitch * (0.9 + wobble * 0.25), 0, 0.045]], 0.025);
+}
+
+function playNotes(wave: OscillatorType, notes: [number, number, number][], volume = 0.08) {
   if (!enabled || !context || context.state !== "running") return;
-  const { wave, notes } = SOUNDS[kind];
   const now = context.currentTime;
   for (const [frequency, offset, length] of notes) {
     const oscillator = context.createOscillator();
@@ -43,7 +54,7 @@ export function playSound(kind: SoundKind) {
     oscillator.frequency.value = frequency;
     // Quick fade in and out so notes don't click.
     gain.gain.setValueAtTime(0, now + offset);
-    gain.gain.linearRampToValueAtTime(0.08, now + offset + 0.01);
+    gain.gain.linearRampToValueAtTime(volume, now + offset + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + length);
     oscillator.connect(gain).connect(context.destination);
     oscillator.start(now + offset);
