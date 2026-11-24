@@ -13,6 +13,8 @@ import {
   WheelieBin, Whiteboard, layoutMess, type SceneChore, type Select,
 } from "./liveParts";
 import { Housemates, type Cheer, type Speech } from "./Housemates";
+import { Pet } from "./pets";
+import { WallArt } from "./wallArt";
 import { readPalette, withDecor, type ScenePalette } from "./palette";
 import { ROOMS, type RoomId, type Vec3 } from "./rooms";
 
@@ -215,6 +217,8 @@ function Flat(props: FlatSceneProps & { p: ScenePalette }) {
       <Kitchen p={p} style={decor.kitchen} />
       <Bathroom p={p} bath={decor.bath} />
       <LivingRoom p={p} decor={decor} />
+      <WallArt p={p} style={decor.art} roommates={roommates} />
+      <Pet p={p} style={decor.pet} still={still} />
       <Hallway p={p} />
       <WheelieBin p={p} />
 

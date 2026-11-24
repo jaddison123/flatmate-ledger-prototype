@@ -41,6 +41,9 @@ export const DECOR_OPTIONS = {
   board: ["whiteboard", "chalkboard", "cork"],
   frontDoor: ["red", "navy", "green"],
   mirror: ["gilt", "round", "cabinet"],
+  art: ["print", "poster", "photos", "neon", "none"],
+  // No pet by default, so houses saved before pets existed look the same.
+  pet: ["none", "cat", "fish", "hamster"],
 };
 
 export function defaultDecor() {

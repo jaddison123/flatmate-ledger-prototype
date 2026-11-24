@@ -48,7 +48,7 @@ const NODES = {
   porch: [4.65, 5.75],
 } satisfies Record<string, P2>;
 
-type NodeId = keyof typeof NODES;
+export type NodeId = keyof typeof NODES;
 
 // Each pair can be walked in a straight line without going through a wall or furniture.
 const EDGES: [NodeId, NodeId][] = [
@@ -98,6 +98,11 @@ function findPath(from: NodeId, to: NodeId): NodeId[] {
     path.unshift(step);
   }
   return path;
+}
+
+/** The points to walk through from one graph node to another (the pet uses the same routes). */
+export function walkPoints(from: NodeId, to: NodeId): P2[] {
+  return findPath(from, to).map((id) => NODES[id]);
 }
 
 function nearestNode(at: P2): NodeId {

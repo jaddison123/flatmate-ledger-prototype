@@ -236,6 +236,9 @@ test("setHouseholdName and setDecor validate and skip no-op changes", () => {
   assert.equal(applyAction(house, { type: "setDecor", slot: "walls", style: "sage" }).decor.walls, "sage");
   assert.equal(applyAction(house, { type: "setDecor", slot: "walls", style: DECOR_OPTIONS.walls[0] }), house);
   assert.throws(() => applyAction(house, { type: "setDecor", slot: "walls", style: "tartan" }), ActionError);
+  assert.equal(applyAction(house, { type: "setDecor", slot: "art", style: "neon" }).decor.art, "neon");
+  assert.equal(applyAction(house, { type: "setDecor", slot: "pet", style: "cat" }).decor.pet, "cat");
+  assert.throws(() => applyAction(house, { type: "setDecor", slot: "pet", style: "dragon" }), ActionError);
 });
 
 test("unknown or malformed actions are rejected", () => {
@@ -262,4 +265,14 @@ test("chatRoommateId keeps only ids of this house's housemates", () => {
   assert.equal(chatRoommateId(house, "zz"), null);
   assert.equal(chatRoommateId(house, undefined), null);
   assert.equal(chatRoommateId(house, 42), null);
+});
+
+test("houses saved before wall art and pets get the defaults: a print, and no pet", () => {
+  const house = normalizeHousehold({
+    roommates: [], chores: [], expenses: [],
+    decor: { walls: "sage", sofa: "corner" },
+  });
+  assert.equal(house.decor.walls, "sage");
+  assert.equal(house.decor.art, "print");
+  assert.equal(house.decor.pet, "none");
 });

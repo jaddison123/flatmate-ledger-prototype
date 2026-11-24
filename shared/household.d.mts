@@ -68,6 +68,8 @@ export interface Decor {
   board: "whiteboard" | "chalkboard" | "cork";
   frontDoor: "red" | "navy" | "green";
   mirror: "gilt" | "round" | "cabinet";
+  art: "print" | "poster" | "photos" | "neon" | "none";
+  pet: "none" | "cat" | "fish" | "hamster";
 }
 
 export type DecorSlot = keyof Decor;

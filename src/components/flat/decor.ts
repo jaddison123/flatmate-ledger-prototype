@@ -95,12 +95,22 @@ export const DECOR_SLOTS: { [S in DecorSlot]: DecorSlotInfo<S> } = {
     where: "Bathroom · this menu",
     options: { gilt: "Gilt frame", round: "Round", cabinet: "Mirrored cabinet" },
   },
+  art: {
+    label: "Wall art",
+    where: "Living room wall",
+    options: { print: "Abstract print", poster: "Gig poster", photos: "Housemate photos", neon: "Neon sign", none: "Bare wall" },
+  },
+  pet: {
+    label: "Pet",
+    where: "Wherever it likes",
+    options: { none: "No pet", cat: "Cat", fish: "Goldfish", hamster: "Hamster" },
+  },
 };
 
 /** Picker order, grouped roughly by room. */
 export const DECOR_ORDER: DecorSlot[] = [
   "walls", "floor",
-  "sofa", "upholstery", "tv", "rug", "plant", "lamp",
+  "sofa", "upholstery", "tv", "rug", "plant", "lamp", "art", "pet",
   "kitchen", "fridge", "table",
   "bath", "mirror",
   "board", "frontDoor",

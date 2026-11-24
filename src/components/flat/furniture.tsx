@@ -350,9 +350,9 @@ export function LivingRoom({ p, decor }: { p: ScenePalette; decor: Decor }) {
       <Block size={[0.5, 0.5, 1.9]} at={[-6.65, 0, 2]} color={p.woodDark} />
       <Plant p={p} style={decor.plant} />
       <Lamp p={p} style={decor.lamp} />
-      {/* Side table with a mug by the sofa. */}
+      {/* Side table with a mug by the sofa (unless the hamster's cage is on it: see pets.tsx). */}
       <Block size={[0.5, 0.5, 0.5]} at={[-2.9, 0, 3.75]} color={p.wood} />
-      <Cyl args={[0.07, 0.07, 0.14, 7]} at={[-2.9, 0.5, 3.75]} color={p.red} />
+      {decor.pet !== "hamster" && <Cyl args={[0.07, 0.07, 0.14, 7]} at={[-2.9, 0.5, 3.75]} color={p.red} />}
     </group>
   );
 }
