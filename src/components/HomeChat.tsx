@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { apiRequest, readMemberToken } from "../lib/house";
+import { apiRequest } from "../lib/house";
+import { chatApi, chatToken, postChat, sendChatMessage, sendTyping } from "../lib/chat";
 import { nameColour } from "../lib/nameColour";
 
 interface HomeChatProps {
@@ -14,6 +15,8 @@ interface HomeChatProps {
   active?: boolean;
   /** Told about unread messages, who is typing and the latest message (for the 3D flat). */
   onActivity?: (activity: ChatActivity) => void;
+  /** The housemate using this device, if they've said: messages are tagged with them. */
+  roommateId?: string | null;
 }
 
 /** A summary of what is happening in the chat, for views outside the chat panel. */
@@ -21,8 +24,9 @@ export interface ChatActivity {
   /** False until the message history has arrived (so loading it isn't mistaken for news). */
   ready: boolean;
   unread: number;
-  typing: string[];
-  latest: { id: string; username: string; text: string; own: boolean } | null;
+  /** Who is typing (not this device), with the housemate they are if their device said. */
+  typing: { username: string; roommateId: string | null }[];
+  latest: { id: string; username: string; roommateId: string | null; text: string; own: boolean } | null;
 }
 
 interface ChatMessage {
@@ -30,6 +34,8 @@ interface ChatMessage {
   username: string;
   /** Public id of the sending device (older messages may not have one). */
   senderId?: string;
+  /** The housemate who sent it, if their device said (for the 3D flat's speech bubbles). */
+  roommateId?: string;
   text: string;
   createdAt: string;
   /** emoji -> usernames who reacted with it */
@@ -75,23 +81,11 @@ function isChatMessage(value: unknown): value is ChatMessage {
   );
 }
 
-/** Every chat request carries this device's key, which proves it owns the name it uses. */
-const memberToken = readMemberToken();
-
-/** Small POST helper; chat extras (react/read/typing) fail quietly. */
-function postJson(path: string, body: Record<string, unknown>): Promise<Response> {
-  return fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...body, token: memberToken }),
-  });
-}
-
 /** How long the name must stay unchanged before it is claimed, so typing doesn't claim "J", "Ju"... */
 const NAME_CLAIM_DELAY_MS = 700;
 
-function HomeChat({ houseCode, username, onUsernameChange, active = true, onActivity }: HomeChatProps) {
-  const api = `/api/houses/${houseCode}/chat`;
+function HomeChat({ houseCode, username, onUsernameChange, active = true, onActivity, roommateId = null }: HomeChatProps) {
+  const api = chatApi(houseCode);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionState, setConnectionState] = useState<
     "connecting" | "connected" | "reconnecting"
@@ -102,7 +96,8 @@ function HomeChat({ houseCode, username, onUsernameChange, active = true, onActi
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [reactingTo, setReactingTo] = useState<string | null>(null);
-  const [typingUsers, setTypingUsers] = useState<Record<string, number>>({});
+  // name -> when the hint expires, and which housemate it is (if their device said).
+  const [typingUsers, setTypingUsers] = useState<Record<string, { until: number; roommateId: string | null }>>({});
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesRef = useRef<HTMLOListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -120,7 +115,7 @@ function HomeChat({ houseCode, username, onUsernameChange, active = true, onActi
     if (!me) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      apiRequest<{ name: string; senderId: string }>(`${api}/name`, { name: me, token: memberToken })
+      apiRequest<{ name: string; senderId: string }>(`${api}/name`, { name: me, token: chatToken() })
         .then((result) => {
           if (cancelled) return;
           setClaimedName(result.name);
@@ -201,7 +196,8 @@ function HomeChat({ houseCode, username, onUsernameChange, active = true, onActi
         const data: unknown = JSON.parse((event as MessageEvent<string>).data);
         if (isRecord(data) && typeof data.username === "string") {
           const name = data.username;
-          setTypingUsers((current) => ({ ...current, [name]: Date.now() + 3500 }));
+          const id = typeof data.roommateId === "string" ? data.roommateId : null;
+          setTypingUsers((current) => ({ ...current, [name]: { until: Date.now() + 3500, roommateId: id } }));
         }
       } catch {
         /* typing hints are best-effort */
@@ -217,7 +213,7 @@ function HomeChat({ houseCode, username, onUsernameChange, active = true, onActi
     const id = window.setTimeout(() => {
       const now = Date.now();
       setTypingUsers((current) =>
-        Object.fromEntries(Object.entries(current).filter(([, until]) => until > now)),
+        Object.fromEntries(Object.entries(current).filter(([, hint]) => hint.until > now)),
       );
     }, 1000);
     return () => window.clearTimeout(id);
@@ -234,7 +230,7 @@ function HomeChat({ houseCode, username, onUsernameChange, active = true, onActi
   const hasUnread = nameIsMine && messages.some((m) => !(m.readBy ?? []).includes(me));
   useEffect(() => {
     if (!hasUnread || !active) return;
-    postJson(`${api}/read`, { username: me }).catch(() => undefined);
+    postChat(`${api}/read`, { username: me }).catch(() => undefined);
   }, [api, hasUnread, me, messages.length, active]);
 
   // Report activity to the parent. Unread counts need a claimed name (read receipts are by name).
@@ -244,15 +240,16 @@ function HomeChat({ houseCode, username, onUsernameChange, active = true, onActi
   const latestMessage = messages.at(-1) ?? null;
   const latestOwn = latestMessage ? isOwn(latestMessage) : false;
   // A string key, so the effect below only runs when the list of names actually changes.
-  const typingKey = JSON.stringify(typingNames);
+  const typingKey = JSON.stringify(typingNames.map((name) => ({ username: name, roommateId: typingUsers[name].roommateId })));
   useEffect(() => {
     onActivity?.({
       ready: historyLoaded,
       unread: unreadCount,
-      typing: JSON.parse(typingKey) as string[],
+      typing: JSON.parse(typingKey) as ChatActivity["typing"],
       latest: latestMessage && {
         id: latestMessage.id,
         username: latestMessage.username,
+        roommateId: latestMessage.roommateId ?? null,
         text: latestMessage.text,
         own: latestOwn,
       },
@@ -278,20 +275,11 @@ function HomeChat({ houseCode, username, onUsernameChange, active = true, onActi
     setFormError("");
     setShowEmojiPicker(false);
     try {
-      const response = await postJson(`${api}/messages`, { username: me, text: message });
-      if (!response.ok) {
-        const result: unknown = await response.json().catch(() => null);
-        const serverMessage =
-          isRecord(result) && typeof result.error === "string"
-            ? result.error
-            : `The chat server returned HTTP ${response.status}.`;
-        throw new Error(serverMessage);
-      }
+      const sent = await sendChatMessage(houseCode, { username: me, text: message, roommateId });
       // Sending also claims the name, in case it was sent before the claim timer fired.
-      const sent: unknown = await response.json().catch(() => null);
-      if (isRecord(sent) && isChatMessage(sent.message) && sent.message.senderId) {
+      if (isChatMessage(sent) && sent.senderId) {
         setClaimedName(me);
-        setSenderId(sent.message.senderId);
+        setSenderId(sent.senderId);
       }
       setText("");
       inputRef.current?.focus();
@@ -311,7 +299,7 @@ function HomeChat({ houseCode, username, onUsernameChange, active = true, onActi
     const now = Date.now();
     if (nameIsMine && value && now - lastTypingPost.current > 2500) {
       lastTypingPost.current = now;
-      postJson(`${api}/typing`, { username: me }).catch(() => undefined);
+      sendTyping(houseCode, me, roommateId);
     }
   }
 
@@ -321,7 +309,7 @@ function HomeChat({ houseCode, username, onUsernameChange, active = true, onActi
       setFormError("Choose a username before reacting.");
       return;
     }
-    postJson(`${api}/react`, { id, username: me, emoji })
+    postChat(`${api}/react`, { id, username: me, emoji })
       .then(async (response) => {
         if (response.ok) return;
         const result: unknown = await response.json().catch(() => null);

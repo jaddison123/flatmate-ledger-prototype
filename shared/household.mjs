@@ -228,6 +228,15 @@ export function hasHouseholdContent(household) {
   );
 }
 
+/**
+ * A chat message or typing hint can say which housemate sent it, so the 3D flat shows the
+ * speech bubble over the right avatar even if their chat name differs. Returns the id if it is
+ * one of this house's housemates, otherwise null (the server then leaves it off).
+ */
+export function chatRoommateId(household, value) {
+  return typeof value === "string" && hasId(household.roommates, value) ? value : null;
+}
+
 /** Thrown for an action that is malformed or breaks a limit. The message is shown to the user. */
 export class ActionError extends Error {}
 

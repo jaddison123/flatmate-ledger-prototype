@@ -12,7 +12,7 @@ import {
   BedroomDoors, BillsTable, Burst, ChatCorner, FrontDoor, Fridge, Mess, Mirror, Television,
   WheelieBin, Whiteboard, layoutMess, type SceneChore, type Select,
 } from "./liveParts";
-import { Housemates, type Cheer } from "./Housemates";
+import { Housemates, type Cheer, type Speech } from "./Housemates";
 import { readPalette, withDecor, type ScenePalette } from "./palette";
 import { ROOMS, type RoomId, type Vec3 } from "./rooms";
 
@@ -24,8 +24,12 @@ export interface FlatSceneProps {
   householdName: string;
   decor: Decor;
   status: SyncStatus;
+  /** For the sofa and phone: unread count, and typing from people without an avatar. */
   chat: ChatActivity;
+  /** A message just in from someone without an avatar (shown over the sofa). */
   recentMessage: ChatActivity["latest"];
+  /** What housemates are saying: bubbles over their heads. */
+  speech: Speech;
   darkMode: boolean;
   /** The open room (camera zooms to it), or null for the whole flat. */
   focus: RoomId | null;
@@ -227,7 +231,7 @@ function Flat(props: FlatSceneProps & { p: ScenePalette }) {
         chores={chores}
         expenses={props.expenses}
         sofa={decor.sofa}
-        chat={props.chat}
+        speech={props.speech}
         hopKey={shuffleKey}
         cheers={cheers}
         still={still}

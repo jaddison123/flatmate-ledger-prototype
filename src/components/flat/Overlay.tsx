@@ -14,15 +14,22 @@ interface OverlayProps {
   className?: string;
   /** Let the content receive clicks (labels are click-through by default). */
   interactive?: boolean;
+  /**
+   * Keep it on screen: when its point is off view (or under the HUD), pin it inside these
+   * margins (px) instead. The wrapper then gets `flat-overlay-offscreen` and a `--towards`
+   * angle (pointing at the real spot) for an arrow.
+   */
+  keepOnScreen?: { x: number; top: number; bottom: number };
   children: ReactNode;
 }
 
 const point = new Vector3();
 
-export function Overlay({ position, className = "", interactive = false, children }: OverlayProps) {
+export function Overlay({ position, className = "", interactive = false, keepOnScreen, children }: OverlayProps) {
   const anchor = useRef<Group>(null);
   const element = useRef<HTMLDivElement | null>(null);
   const root = useRef<Root | null>(null);
+  const offscreen = useRef(false);
   const gl = useThree((state) => state.gl);
   const camera = useThree((state) => state.camera);
   const size = useThree((state) => state.size);
@@ -58,8 +65,20 @@ export function Overlay({ position, className = "", interactive = false, childre
     const wrapper = element.current;
     if (!anchor.current || !wrapper) return;
     anchor.current.getWorldPosition(point).project(camera);
-    const x = ((point.x + 1) / 2) * size.width;
-    const y = ((1 - point.y) / 2) * size.height;
+    let x = ((point.x + 1) / 2) * size.width;
+    let y = ((1 - point.y) / 2) * size.height;
+    if (keepOnScreen) {
+      const rawX = x;
+      const rawY = y;
+      x = Math.min(Math.max(x, keepOnScreen.x), size.width - keepOnScreen.x);
+      y = Math.min(Math.max(y, keepOnScreen.top), size.height - keepOnScreen.bottom);
+      const pinned = x !== rawX || y !== rawY;
+      if (pinned !== offscreen.current) {
+        offscreen.current = pinned;
+        wrapper.classList.toggle("flat-overlay-offscreen", pinned);
+      }
+      if (pinned) wrapper.style.setProperty("--towards", `${Math.atan2(rawY - y, rawX - x).toFixed(2)}rad`);
+    }
     wrapper.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
   });
 

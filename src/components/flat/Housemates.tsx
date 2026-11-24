@@ -2,20 +2,20 @@
 // One `useFrame` steps the simulation; each avatar reads its agent every frame and poses itself
 // (walk waddle, sitting, leaning into the fridge, dancing...) without re-rendering React. Only
 // rare changes (a new emoji bubble, vanishing into a bedroom, the hover label) touch React state.
-// With reduced motion they stand still in the living room, as before.
-import { useEffect, useMemo, useRef, useState } from "react";
+// What they say in the house chat pops up in a speech bubble over their head, and they stop to
+// say it. With reduced motion they stand still in the living room, as before.
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Group } from "three";
-import type { ChatActivity } from "../HomeChat";
 import type { Decor, Expense, Roommate } from "../../hooks/useHouseholdData";
 import { computeBalances } from "../../lib/bills";
 import { computeLeague, starOfTheWeek } from "../../lib/league";
-import { initial } from "../../lib/nameColour";
+import { initial, nameColour } from "../../lib/nameColour";
 import { Avatar } from "./Avatar";
 import { Block, Cyl, Mat } from "./furniture";
 import { Hotspot, Tag, hashOf, type SceneChore, type Select } from "./liveParts";
 import {
-  buildSpots, chatPing, cheer, createLife, hopAll, setSpots, stepLife, syncAgents,
+  buildSpots, cheer, createLife, hold, hopAll, setSpots, stepLife, syncAgents,
   type Life, type PersonFacts, type Prop,
 } from "./life";
 import { Overlay } from "./Overlay";
@@ -23,12 +23,24 @@ import { AVATAR_SPOTS, MAX_BEDROOM_DOORS, messZone, type Vec3 } from "./rooms";
 
 const ORIGIN: Vec3 = [0, 0, 0];
 const EMOTE_AT: Vec3 = [0, 1.62, 0];
+const SAY_AT: Vec3 = [0, 1.66, 0];
+// A speech bubble whose speaker is off view (or under the score card / buttons) waits at the
+// edge, pointing at them.
+const SAY_MARGINS = { x: 110, top: 70, bottom: 150 };
 const PROPS: Prop[] = ["phone", "mug", "snack", "book", "bag"];
 
-/** Names as the chat compares them: case- and space-insensitive. */
-function sameName(a: string, b: string): boolean {
-  const norm = (text: string) => text.toLowerCase().replace(/\s+/g, "");
-  return norm(a) === norm(b);
+/** A chat message showing over a housemate's head. */
+export interface SpeechBubble {
+  /** The message id: a new message replaces the bubble (and pops again). */
+  key: string;
+  text: string;
+}
+
+/** What the housemates are saying in the house chat right now, by housemate id. */
+export interface Speech {
+  bubbles: Record<string, SpeechBubble>;
+  /** Housemates typing (shown as "…" until their message arrives). */
+  typing: string[];
 }
 
 /** Faces the camera (roughly), with a little variety per person. */
@@ -86,9 +98,29 @@ function HeldThings({ refs }: { refs: { current: Partial<Record<Prop, Group | nu
   );
 }
 
+/** The bubble over a speaker's head: their name, then the message (or "…" while typing). */
+function SayBubble({ name, bubble }: { name: string; bubble: SpeechBubble | undefined }) {
+  return (
+    <span
+      key={bubble?.key ?? "typing"}
+      className={`flat-say-bubble${bubble ? "" : " flat-say-typing"}`}
+      style={{ "--who": nameColour(name) } as CSSProperties}
+      aria-hidden="true"
+    >
+      <b>{name}<span className="flat-say-arrow" /></b>
+      {bubble
+        ? <span className="flat-say-text">{bubble.text}</span>
+        : <span className="wa-dots"><i /><i /><i /></span>}
+    </span>
+  );
+}
+
 function Housemate({
-  person, life, home, still, isMe, accent, onSelect,
-}: { person: Roommate; life: Life; home: Vec3; still: boolean; isMe: boolean; accent: string; onSelect: Select }) {
+  person, life, home, still, isMe, accent, bubble, typing, onSelect,
+}: {
+  person: Roommate; life: Life; home: Vec3; still: boolean; isMe: boolean; accent: string;
+  bubble: SpeechBubble | undefined; typing: boolean; onSelect: Select;
+}) {
   const root = useRef<Group>(null);
   const body = useRef<Group>(null);
   const held = useRef<Partial<Record<Prop, Group | null>>>({});
@@ -179,7 +211,12 @@ function Housemate({
               {isMe ? "YOU" : initial(person.name)}
             </Tag>
           )}
-          {ui.emote && !ui.hidden && (
+          {(bubble || typing) && !ui.hidden && (
+            <Overlay position={SAY_AT} className="flat-say" keepOnScreen={SAY_MARGINS}>
+              <SayBubble name={person.name} bubble={bubble} />
+            </Overlay>
+          )}
+          {ui.emote && !ui.hidden && !bubble && !typing && (
             <Overlay position={EMOTE_AT} className="flat-emote">
               <span key={ui.emoteKey} className="flat-emote-text" aria-hidden="true">{ui.emote}</span>
             </Overlay>
@@ -215,13 +252,13 @@ export interface Cheer {
 }
 
 export function Housemates({
-  roommates, chores, expenses, sofa, chat, hopKey, cheers, still, meId, accent, onSelect,
+  roommates, chores, expenses, sofa, speech, hopKey, cheers, still, meId, accent, onSelect,
 }: {
   roommates: Roommate[];
   chores: SceneChore[];
   expenses: Expense[];
   sofa: Decor["sofa"];
-  chat: ChatActivity;
+  speech: Speech;
   hopKey: number;
   cheers: Cheer;
   still: boolean;
@@ -252,16 +289,11 @@ export function Housemates({
     // `people` changes identity every render; its ids are what matter.
   }, [life, peopleKey, sofa, roommates]);
 
-  // Someone posted in the house chat: their avatar gets their phone out.
-  const lastChat = useRef<{ ready: boolean; id: string | null }>({ ready: chat.ready, id: chat.latest?.id ?? null });
+  // Whoever is talking (a bubble or "…" over their head) stops where they are until done.
+  const talking = useRef<string[]>([]);
   useEffect(() => {
-    const latest = chat.latest;
-    const before = lastChat.current;
-    lastChat.current = { ready: chat.ready, id: latest?.id ?? null };
-    if (!before.ready || !chat.ready || !latest || latest.id === before.id) return;
-    const sender = roommates.find((person) => sameName(person.name, latest.username));
-    if (sender) chatPing(life, sender.id, factsRef.current.get(sender.id) ?? { chores: {}, balance: 0, star: false });
-  }, [chat.ready, chat.latest, roommates, life]);
+    talking.current = [...Object.keys(speech.bubbles), ...speech.typing];
+  }, [speech]);
 
   useEffect(() => {
     for (const id of cheers.ids) cheer(life, id);
@@ -273,13 +305,16 @@ export function Housemates({
   }, [hopKey, life]);
 
   useFrame((_, delta) => {
-    if (!still) stepLife(life, delta, factsRef.current);
+    if (still) return;
+    for (const id of talking.current) hold(life, id, 0.4);
+    stepLife(life, delta, factsRef.current);
   });
 
   return (
     <>
       {people.map((person, index) => (
-        <Housemate key={person.id} person={person} life={life} home={AVATAR_SPOTS[index]} still={still} isMe={person.id === meId} accent={accent} onSelect={onSelect} />
+        <Housemate key={person.id} person={person} life={life} home={AVATAR_SPOTS[index]} still={still} isMe={person.id === meId} accent={accent}
+          bubble={speech.bubbles[person.id]} typing={speech.typing.includes(person.id)} onSelect={onSelect} />
       ))}
     </>
   );

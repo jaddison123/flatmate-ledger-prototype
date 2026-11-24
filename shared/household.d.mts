@@ -124,5 +124,6 @@ export declare function defaultLook(id: string): Look;
 export declare function emptyHousehold(): Household;
 export declare function normalizeHousehold(value: unknown): Household | null;
 export declare function hasHouseholdContent(household: Household): boolean;
+export declare function chatRoommateId(household: Household, value: unknown): string | null;
 export declare class ActionError extends Error {}
 export declare function applyAction(household: Household, action: HouseholdAction): Household;

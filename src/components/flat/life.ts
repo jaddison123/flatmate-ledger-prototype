@@ -327,8 +327,8 @@ export interface Agent {
   doLeft: number;
   doTotal: number;
   plan: Plan | null;
-  /** An interruption to do next (a chat message), already reserved. */
-  pending: Plan | null;
+  /** Stands still until then (they're saying something in the house chat). */
+  holdUntil: number;
   prop: Prop | null;
   carry: Prop | null;
   lastKind: Kind | null;
@@ -401,7 +401,7 @@ function newAgent(id: string, index: number, home: P2, yaw: number): Agent {
     id, index, x: home[0], z: home[1], yaw, yawGoal: yaw, phase: "idle", route: [], leg: 0,
     // Everyone starts in the living room and drifts off at different times.
     wait: rand(0.5, 4), spot: null, exit: [], node: nearestNode(home), pose: "stand",
-    doTime: 0, doLeft: 0, doTotal: 0, plan: null, pending: null, prop: null, carry: null, lastKind: null, label: "",
+    doTime: 0, doLeft: 0, doTotal: 0, plan: null, holdUntil: 0, prop: null, carry: null, lastKind: null, label: "",
     sit: 0, seatY: 0, lean: 0, fade: 1, moving: 0, stride: 0, hopAt: -Infinity, ox: 0, oz: 0,
     emote: null, emoteKey: 0, emoteUntil: 0, talk: null, talkCooldown: rand(3, 8),
   };
@@ -469,8 +469,7 @@ function makePlan(life: Life, agent: Agent, facts: PersonFacts, only?: Kind[]): 
 
 /** Sets off for the next plan, or wanders back to the nearest node if nothing is free. */
 function setOff(life: Life, agent: Agent, facts: PersonFacts): void {
-  const plan = agent.pending ?? makePlan(life, agent, facts);
-  agent.pending = null;
+  const plan = makePlan(life, agent, facts);
   // Getting up from a seat takes a moment.
   agent.wait = agent.sit > 0.1 ? 0.35 : 0;
   agent.phase = "walk";
@@ -501,8 +500,7 @@ function arrive(life: Life, agent: Agent): void {
   agent.phase = "do";
   agent.pose = plan.pose;
   agent.doTime = 0;
-  // Something else came up on the way (a chat message): don't stay long.
-  agent.doTotal = agent.doLeft = agent.pending ? 0.3 : plan.time;
+  agent.doTotal = agent.doLeft = plan.time;
   agent.prop = plan.prop === "bag" ? null : plan.prop;
   agent.seatY = plan.spot.seatY ?? 0;
   agent.label = plan.label;
@@ -548,7 +546,7 @@ function script(fa: PersonFacts, fb: PersonFacts): [0 | 1, string][] {
 }
 
 function canTalk(agent: Agent): boolean {
-  if (agent.talk || agent.talkCooldown > 0 || agent.fade < 0.95 || agent.pending) return false;
+  if (agent.talk || agent.talkCooldown > 0 || agent.fade < 0.95 || agent.holdUntil > 0) return false;
   return agent.phase === "do" && agent.pose !== "enter" && agent.pose !== "reach" && agent.pose !== "dance";
 }
 
@@ -595,25 +593,16 @@ function stepTalks(life: Life, dt: number): void {
 
 // ---------- Events from the house ----------
 
-/** Someone sent a chat message: they grab their phone and settle somewhere to text. */
-export function chatPing(life: Life, id: string, facts: PersonFacts): void {
+/**
+ * They're talking in the house chat (a speech bubble or "…" over their head): they stop where
+ * they are until `seconds` from now, and step out of their bedroom if they're in it. Called
+ * every frame while it lasts, so it simply keeps being extended.
+ */
+export function hold(life: Life, id: string, seconds: number): void {
   const agent = life.agents.get(id);
   if (!agent) return;
-  say(life, agent, "💬", 2.5);
   if (agent.talk) endTalk(life, agent.talk);
-  // Already on the sofa: just pick up the phone.
-  if (agent.phase === "do" && agent.spot?.kind === "sofa") {
-    agent.prop = "phone";
-    agent.label = "Texting the house chat";
-    agent.doLeft = Math.max(agent.doLeft, 8);
-    return;
-  }
-  if (agent.pending) return;
-  const plan = makePlan(life, agent, facts, ["sofa", "table", "hang"]);
-  if (!plan) return;
-  agent.pending = { ...plan, prop: "phone", emotes: ["📱"], loud: true, label: "Texting the house chat", time: rand(8, 14) };
-  if (agent.phase === "do") agent.doLeft = Math.min(agent.doLeft, 0.5);
-  if (agent.phase === "idle") agent.wait = 0;
+  agent.holdUntil = Math.max(agent.holdUntil, life.time + seconds);
 }
 
 /** They just ticked off a chore. */
@@ -645,12 +634,16 @@ export function stepLife(life: Life, rawDt: number, facts: Map<string, PersonFac
     const mine = facts.get(agent.id) ?? NO_FACTS;
     agent.talkCooldown -= dt;
     if (agent.emote && life.time > agent.emoteUntil) agent.emote = null;
+    const held = life.time < agent.holdUntil;
+    if (!held) agent.holdUntil = 0;
 
     if (agent.phase === "idle") {
       agent.wait -= dt;
-      if (agent.wait <= 0) setOff(life, agent, mine);
+      if (agent.wait <= 0 && !held) setOff(life, agent, mine);
     } else if (agent.phase === "walk") {
-      if (agent.wait > 0) {
+      if (held) {
+        // Stopped mid-walk to talk.
+      } else if (agent.wait > 0) {
         agent.wait -= dt;
       } else {
         let step = WALK_SPEED * dt;
@@ -676,8 +669,10 @@ export function stepLife(life: Life, rawDt: number, facts: Map<string, PersonFac
       }
     } else {
       agent.doTime += dt;
-      // Chatting holds them in place.
-      if (!agent.talk) agent.doLeft -= dt;
+      // In their room: come back out (the door fade needs half a second) to be seen talking.
+      if (held && agent.pose === "enter") agent.doLeft = Math.min(agent.doLeft, 0.5);
+      // Chatting (emoji small talk, or the house chat) holds them in place.
+      if (!agent.talk && (!held || agent.pose === "enter")) agent.doLeft -= dt;
       const spot = agent.spot!;
       const base = angleTo(spot.at, spot.face);
       if (agent.talk && agent.pose !== "sit") {
@@ -701,7 +696,7 @@ export function stepLife(life: Life, rawDt: number, facts: Map<string, PersonFac
       // Fade out through the bedroom door, and back in when they come out.
       ? Math.min(1, Math.max(0, 1 - agent.doTime / 0.5, 1 - agent.doLeft / 0.5))
       : approach(agent.fade, 1, dt / 0.4);
-    agent.moving = approach(agent.moving, agent.phase === "walk" && agent.wait <= 0 ? 1 : 0, dt / 0.2);
+    agent.moving = approach(agent.moving, agent.phase === "walk" && agent.wait <= 0 && !held ? 1 : 0, dt / 0.2);
     const turn = wrapAngle(agent.yawGoal - agent.yaw);
     agent.yaw += turn * Math.min(1, dt * 8);
   }

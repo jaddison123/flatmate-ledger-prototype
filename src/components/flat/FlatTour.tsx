@@ -41,8 +41,8 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     room: "chat",
-    title: "Chat on the sofa",
-    body: "A live group chat just for this house. New messages pop up over the sofa, and the sender wanders over to their phone.",
+    title: "Talk to the house",
+    body: "Type in the box at the bottom (or press Enter) and it pops up over your character’s head for everyone. The phone on the sofa keeps the whole chat log.",
   },
   {
     room: "house",

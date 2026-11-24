@@ -1,16 +1,19 @@
 // The "flat" view of a house: the 3D scene (lazy-loaded), an overlay with the week's score and
 // buttons for each room, and a sheet that slides in with the room's feature when one is opened.
 // The buttons are the keyboard/screen-reader way in; clicking things in the scene is a shortcut.
-import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ChatActivity } from "../HomeChat";
 import type { Decor, Expense, Note, Roommate, SyncStatus } from "../../hooks/useHouseholdData";
 import { useModalFocus } from "../../hooks/useModalFocus";
 import PanelBoundary from "../PanelBoundary";
 import { computeBalances, describeOwnBalance } from "../../lib/bills";
+import { sameName } from "../../lib/chat";
 import { playSound, setSoundEnabled } from "../../lib/sfx";
 import { FlatTour, TOUR_STEPS, hasSeenTour, markTourSeen, tourStepFor } from "./FlatTour";
+import type { Speech, SpeechBubble } from "./Housemates";
 import type { SceneChore } from "./liveParts";
-import { ROOMS, ROOM_ORDER, type RoomId } from "./rooms";
+import { AVATAR_SPOTS, ROOMS, ROOM_ORDER, type RoomId } from "./rooms";
+import SayBox from "./SayBox";
 
 const FlatScene = lazy(() => import("./FlatScene"));
 
@@ -20,6 +23,11 @@ const SIDE_SHEET_WIDTH = 460;
 const TOUR_CARD_SPACE = 420;
 const RECENT_MESSAGE_MS = 6000;
 const NO_CHAT: ChatActivity = { ready: false, unread: 0, typing: [], latest: null };
+
+/** How long a speech bubble stays up: long enough to read, capped so it doesn't linger. */
+function bubbleMs(text: string): number {
+  return Math.min(9000, 3000 + text.length * 60);
+}
 
 /** True if this browser can draw WebGL (checked once). */
 let webglSupport: boolean | null = null;
@@ -97,6 +105,10 @@ export interface FlatViewProps {
   /** The bedroom doors' look picker, opened on the housemate whose door or avatar was clicked. */
   renderLooks: (personId: string | null) => ReactNode;
   renderChat: (active: boolean, onActivity: (activity: ChatActivity) => void) => ReactNode;
+  /** For the say box, which sends to the house chat as this device. */
+  houseCode: string;
+  chatName: string;
+  onChatNameChange: (name: string) => void;
   /** The housemate using this device, if they've said. */
   me: Roommate | null;
   /**
@@ -166,21 +178,68 @@ function FlatView(props: FlatViewProps) {
     }
   }, [soundOn]);
 
-  // A message from someone else arriving (not the history loading) pops up over the sofa.
-  const [recent, setRecent] = useState<ChatActivity["latest"]>(null);
-  const [seen, setSeen] = useState({ ready: false, id: null as string | null });
-  const latestId = chat.latest?.id ?? null;
-  if (seen.ready !== chat.ready || seen.id !== latestId) {
-    // Adjusting state while rendering: React re-renders straight away with both values.
-    setSeen({ ready: chat.ready, id: latestId });
-    if (seen.ready && chat.ready && chat.latest && !chat.latest.own) setRecent(chat.latest);
+  // Who in the chat has an avatar: the message's housemate tag, or (older clients) a matching
+  // name. Housemates beyond the avatar spots (old big houses) talk over the sofa instead.
+  const avatars = props.roommates.slice(0, AVATAR_SPOTS.length);
+  function speakerOf(who: { username: string; roommateId: string | null }): Roommate | undefined {
+    if (who.roommateId) return avatars.find((person) => person.id === who.roommateId);
+    return avatars.find((person) => sameName(person.name, who.username));
   }
+
+  // A message arriving (not the history loading) pops up over its sender's head, or over the
+  // sofa if they have no avatar.
+  const [bubbles, setBubbles] = useState<Record<string, SpeechBubble & { until: number }>>({});
+  const [recent, setRecent] = useState<ChatActivity["latest"]>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const lastLatest = useRef({ ready: false, id: null as string | null });
+  const latest = chat.latest;
+  useEffect(() => {
+    const before = lastLatest.current;
+    lastLatest.current = { ready: chat.ready, id: latest?.id ?? null };
+    if (!before.ready || !chat.ready || !latest || latest.id === before.id) return;
+    const speaker = speakerOf(latest);
+    if (!speaker) {
+      if (!latest.own) setRecent(latest);
+      return;
+    }
+    if (!latest.own) playSound("message");
+    setBubbles((current) => ({
+      ...current,
+      [speaker.id]: { key: latest.id, text: latest.text, until: Date.now() + bubbleMs(latest.text) },
+    }));
+    setAnnouncement(`${speaker.name} says: ${latest.text}`);
+    // `latest` is identified by its id; speakerOf reads the current housemates.
+  }, [chat.ready, latest?.id]);
+
+  // Take each bubble down when its time is up.
+  useEffect(() => {
+    const ends = Object.values(bubbles).map((bubble) => bubble.until);
+    if (ends.length === 0) return;
+    const timer = window.setTimeout(() => {
+      const now = Date.now();
+      setBubbles((current) => Object.fromEntries(Object.entries(current).filter(([, bubble]) => bubble.until > now)));
+    }, Math.max(0, Math.min(...ends) - Date.now()) + 20);
+    return () => window.clearTimeout(timer);
+  }, [bubbles]);
+
   useEffect(() => {
     if (!recent) return;
     playSound("message");
     const timer = window.setTimeout(() => setRecent(null), RECENT_MESSAGE_MS);
     return () => window.clearTimeout(timer);
   }, [recent]);
+
+  // "…" over the heads of housemates typing (and over your own while you have an unsent line).
+  const [drafting, setDrafting] = useState(false);
+  const typingIds = chat.typing.map((hint) => speakerOf(hint)?.id).filter((id): id is string => id !== undefined);
+  if (drafting && props.me && avatars.some((person) => person.id === props.me?.id)) typingIds.push(props.me.id);
+  const typingKey = typingIds.join(",");
+  const speech = useMemo<Speech>(
+    () => ({ bubbles, typing: typingKey ? typingKey.split(",") : [] }),
+    [bubbles, typingKey],
+  );
+  // The sofa only shows typing from people without an avatar.
+  const sofaChat: ChatActivity = { ...chat, typing: chat.typing.filter((hint) => !speakerOf(hint)) };
 
   const done = chores.filter((chore) => chore.isComplete).length;
   const percent = chores.length ? Math.round((done / chores.length) * 100) : 0;
@@ -216,8 +275,9 @@ function FlatView(props: FlatViewProps) {
             householdName={props.householdName}
             decor={props.decor}
             status={props.status}
-            chat={chat}
+            chat={sofaChat}
             recentMessage={recent}
+            speech={speech}
             darkMode={props.darkMode}
             focus={room ?? tourRoom}
             sheetWidth={wide ? (tour !== null ? TOUR_CARD_SPACE : SIDE_SHEET_WIDTH) : 0}
@@ -309,6 +369,22 @@ function FlatView(props: FlatViewProps) {
         ))}
       </nav>
       <p className="flat-hint" aria-hidden="true">Drag to move · scroll or pinch to zoom · click anything that grows</p>
+
+      {/* It makes way for the tour and the "who are you?" card, and on phones for a sheet
+          (hidden, not unmounted, so an unsent line survives). */}
+      <SayBox
+        hidden={(room !== null && !wide) || tour !== null || asking}
+        houseCode={props.houseCode}
+        me={props.me}
+        chatName={props.chatName}
+        onChatNameChange={props.onChatNameChange}
+        unread={chat.unread}
+        onOpenLog={() => openRoom("chat")}
+        shortcut={room === null && tour === null && !asking}
+        onDraftingChange={setDrafting}
+      />
+      {/* Speech bubbles are drawn for the eye; screen readers hear them from here. */}
+      <p className="visually-hidden" aria-live="polite">{announcement}</p>
 
       {tour !== null && <FlatTour step={tour} onStep={goToTourStep} onClose={endTour} />}
       {asking && props.whoAmI?.((id) => {

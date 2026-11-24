@@ -9,7 +9,7 @@ import { dirname, extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, randomInt, randomUUID } from "node:crypto";
 import { createStore } from "./storage.mjs";
-import { ActionError, applyAction, emptyHousehold, normalizeHousehold } from "./shared/household.mjs";
+import { ActionError, applyAction, chatRoommateId, emptyHousehold, normalizeHousehold } from "./shared/household.mjs";
 
 const projectDirectory = dirname(fileURLToPath(import.meta.url));
 const store = createStore(projectDirectory);
@@ -397,10 +397,13 @@ async function handleChat(house, route, request, response) {
     }
     const hash = memberHash(body);
     claimName(house, username, hash, { use: true }); // 409 if someone else's; saved with the message
+    // Which housemate is talking (for the 3D flat's speech bubbles); left off if not one of them.
+    const roommateId = chatRoommateId(house.household, isRecord(body) ? body.roommateId : undefined);
     const message = withExtras({
       id: randomUUID(),
       username,
       senderId: senderIdFor(hash),
+      ...(roommateId ? { roommateId } : {}),
       text,
       createdAt: new Date().toISOString(),
       readBy: [username],
@@ -464,12 +467,13 @@ async function handleChat(house, route, request, response) {
     return true;
   }
 
-  // Typing indicator: { username } (not saved)
+  // Typing indicator: { username, roommateId? } (not saved)
   if (route === "/chat/typing") {
     const body = await readRequestJson(request);
     const username = cleanUsername(isRecord(body) ? body.username : "");
     if (username && holdsName(house, username, memberHash(body))) {
-      broadcastEvent(house.chatStreams, "typing", { username });
+      const roommateId = chatRoommateId(house.household, body.roommateId);
+      broadcastEvent(house.chatStreams, "typing", { username, ...(roommateId ? { roommateId } : {}) });
     }
     sendJson(response, 200, { ok: true });
     return true;

@@ -281,6 +281,9 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
             renderLooks={(personId) => (
               <LookPicker roommates={roommates} personId={personId ?? me?.id ?? null} meId={me?.id ?? null} onChange={setLook} />
             )}
+            houseCode={houseCode}
+            chatName={chatUsername}
+            onChatNameChange={setChatUsername}
             me={me}
             whoAmI={askWhoAmI ? (onChosen) => (
               <WhoAmI
@@ -300,6 +303,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
                 onUsernameChange={setChatUsername}
                 active={active}
                 onActivity={onActivity}
+                roommateId={me?.id ?? null}
               />
             )}
             onUseListView={() => onSetView("list")}
@@ -425,6 +429,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
               houseCode={houseCode}
               username={chatUsername}
               onUsernameChange={setChatUsername}
+              roommateId={me?.id ?? null}
             />
           </PanelBoundary>
         </section>

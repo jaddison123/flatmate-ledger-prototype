@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  ActionError, DECOR_OPTIONS, LIMITS, LOOK_BUILD_MAX, LOOK_OPTIONS, applyAction, defaultDecor, defaultLook,
+  ActionError, DECOR_OPTIONS, LIMITS, LOOK_BUILD_MAX, LOOK_OPTIONS, applyAction, chatRoommateId, defaultDecor, defaultLook,
   emptyHousehold, hasHouseholdContent, normalizeHousehold,
 } from "../shared/household.mjs";
 
@@ -252,4 +252,14 @@ test("applyAction never modifies the house it was given", () => {
   applyAction(house, { type: "removeRoommate", id: "b" });
   applyAction(house, { type: "addChore", chore: chore("c1", "a") });
   assert.deepEqual(house, snapshot);
+});
+
+// ---------- Chat: which housemate sent a message ----------
+
+test("chatRoommateId keeps only ids of this house's housemates", () => {
+  const house = houseWith("a", "b");
+  assert.equal(chatRoommateId(house, "b"), "b");
+  assert.equal(chatRoommateId(house, "zz"), null);
+  assert.equal(chatRoommateId(house, undefined), null);
+  assert.equal(chatRoommateId(house, 42), null);
 });

@@ -399,7 +399,7 @@ export function ChatCorner({
   p: ScenePalette;
   sofa: Decor["sofa"];
   chat: ChatActivity;
-  /** A message from someone else that just arrived (shown in a bubble for a few seconds). */
+  /** A message just in from someone without an avatar (housemates get a bubble over their head). */
   recent: ChatActivity["latest"];
   still: boolean;
   onSelect: Select;
@@ -407,7 +407,7 @@ export function ChatCorner({
   const phoneRef = useRef<Mesh>(null);
   usePulse(phoneRef, chat.unread > 0, still, 0.2, 1.2);
 
-  const typing = chat.typing;
+  const typing = chat.typing.map((hint) => hint.username);
   const showBubble = recent !== null || typing.length > 0 || chat.unread > 0;
 
   return (
