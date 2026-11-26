@@ -46,7 +46,8 @@ interface HotspotProps {
   room: RoomId;
   at: Vec3;
   rotation?: Vec3;
-  label: ReactNode;
+  /** Hover label; omit when something else already labels it (e.g. the mess markers). */
+  label?: ReactNode;
   /** Height of the hover label above `at`. */
   tagHeight?: number;
   onSelect: Select;
@@ -83,7 +84,7 @@ export function Hotspot({ room, at, rotation, label, tagHeight = 2.3, onSelect, 
       }}
     >
       {children}
-      {hover && <Tag position={[0, tagHeight, 0]}>{label}</Tag>}
+      {hover && label && <Tag position={[0, tagHeight, 0]}>{label}</Tag>}
     </group>
   );
 }
@@ -1056,25 +1057,14 @@ function MessShape({ zone, p, seed }: { zone: MessZone; p: ScenePalette; seed: n
   }
 }
 
+// Labelled by the floating markers (MessMarkers.tsx); clicking a pile opens its room's popup.
 function MessItem({
-  item, p, names, still, onSelect,
-}: { item: ReturnType<typeof layoutMess>[number]; p: ScenePalette; names: Map<string, string>; still: boolean; onSelect: Select }) {
+  item, p, still, onOpen,
+}: { item: ReturnType<typeof layoutMess>[number]; p: ScenePalette; still: boolean; onOpen: (zone: MessZone) => void }) {
   const ring = useRef<Mesh>(null);
   usePulse(ring, item.chore.isOverdue, still, 0.3, 1.1);
-  const who = names.get(item.chore.assigneeId ?? "") ?? "Up for grabs";
   return (
-    <Hotspot
-      room="chores"
-      at={item.at}
-      onSelect={onSelect}
-      tagHeight={1}
-      label={
-        <>
-          <b>{item.chore.title}</b>
-          <span className="flat-tag-sub">{who}{item.chore.isOverdue ? " · overdue" : ""}</span>
-        </>
-      }
-    >
+    <Hotspot room="chores" at={item.at} onSelect={() => onOpen(item.zone)}>
       <MessShape zone={item.zone} p={p} seed={hashOf(item.chore.id) % 6} />
       {item.chore.isOverdue && (
         <mesh ref={ring} position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -1087,13 +1077,12 @@ function MessItem({
 }
 
 export function Mess({
-  p, chores, roommates, still, onSelect,
-}: { p: ScenePalette; chores: SceneChore[]; roommates: Roommate[]; still: boolean; onSelect: Select }) {
-  const names = new Map(roommates.map((person) => [person.id, person.name]));
+  p, chores, still, onOpen,
+}: { p: ScenePalette; chores: SceneChore[]; still: boolean; onOpen: (zone: MessZone) => void }) {
   return (
     <>
       {layoutMess(chores).map((item) => (
-        <MessItem key={item.chore.id} item={item} p={p} names={names} still={still} onSelect={onSelect} />
+        <MessItem key={item.chore.id} item={item} p={p} still={still} onOpen={onOpen} />
       ))}
     </>
   );

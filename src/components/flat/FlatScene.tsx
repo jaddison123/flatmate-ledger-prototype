@@ -13,10 +13,11 @@ import {
   WheelieBin, Whiteboard, layoutMess, type SceneChore, type Select,
 } from "./liveParts";
 import { Housemates, type Cheer, type Speech } from "./Housemates";
+import { MessMarkers } from "./MessMarkers";
 import { Pet } from "./pets";
 import { WallArt } from "./wallArt";
 import { readPalette, withDecor, type ScenePalette } from "./palette";
-import { ROOMS, type RoomId, type Vec3 } from "./rooms";
+import { ROOMS, type MessZone, type RoomId, type Vec3 } from "./rooms";
 
 export interface FlatSceneProps {
   roommates: Roommate[];
@@ -43,6 +44,8 @@ export interface FlatSceneProps {
   recentreKey: number;
   still: boolean;
   onSelect: Select;
+  /** "Done" in a mess popup: ticks the chore off for this week. */
+  onCompleteChore: (choreId: string) => void;
 }
 
 // Camera direction: from the front-right corner, looking down at the flat.
@@ -175,6 +178,12 @@ function Flat(props: FlatSceneProps & { p: ScenePalette }) {
   const [shuffleKey, setShuffleKey] = useState(0);
   const [cheers, setCheers] = useState<Cheer>({ key: 0, ids: [] });
   const nextBurstId = useRef(0);
+  // The room whose mess popup is open. Closed whenever a room sheet (or the tour) takes over.
+  const [messOpen, setMessOpen] = useState<MessZone | null>(null);
+  const size = useThree((state) => state.size);
+  useEffect(() => {
+    if (props.focus !== null) setMessOpen(null);
+  }, [props.focus]);
 
   useEffect(() => {
     // Sparkle where a chore's mess was when it gets ticked off (here or by a housemate).
@@ -243,7 +252,18 @@ function Flat(props: FlatSceneProps & { p: ScenePalette }) {
         accent={p.red}
         onSelect={onSelect}
       />
-      <Mess p={p} chores={chores} roommates={roommates} still={still} onSelect={onSelect} />
+      <Mess p={p} chores={chores} still={still} onOpen={setMessOpen} />
+      <MessMarkers
+        chores={chores}
+        roommates={roommates}
+        meId={props.meId}
+        baseZoom={fitZoom(size.width, size.height)}
+        hidden={props.focus !== null}
+        open={messOpen}
+        onOpen={setMessOpen}
+        onComplete={props.onCompleteChore}
+        onOpenBoard={() => onSelect("chores")}
+      />
 
       {bursts.map((burst) => (
         <Burst

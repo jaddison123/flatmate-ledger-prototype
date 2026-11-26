@@ -22,7 +22,7 @@ export const TOUR_STEPS: TourStep[] = [
   {
     room: "chores",
     title: "The chore whiteboard",
-    body: "Add chores, give them to housemates and tick them off. Everything resets on Monday. Chores still to do leave mess around the flat, so you can see what’s waiting.",
+    body: "Add chores, give them to housemates and tick them off. Everything resets on Monday. Chores still to do leave mess around the flat, with a marker above it: tap one to tick the chore off.",
   },
   {
     room: "league",

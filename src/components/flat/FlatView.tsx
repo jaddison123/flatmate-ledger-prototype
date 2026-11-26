@@ -118,6 +118,8 @@ export interface FlatViewProps {
    */
   whoAmI: ((onChosen: (id: string | null) => void) => ReactNode) | null;
   onUseListView: () => void;
+  /** "Done" on a chore from the mess popups in the scene. */
+  onCompleteChore: (choreId: string) => void;
 }
 
 function FlatView(props: FlatViewProps) {
@@ -287,16 +289,20 @@ function FlatView(props: FlatViewProps) {
             recentreKey={recentreKey}
             still={still}
             onSelect={openRoom}
+            onCompleteChore={props.onCompleteChore}
           />
         </Suspense>
       </SceneErrorBoundary>
 
       <div className="flat-hud" hidden={room !== null && !wide}>
+        {/* This week's chores and the bills at a glance; each row opens its room. */}
         <div className="flat-score">
-          <p className="eyebrow"><span>★</span> {props.weekLabel}</p>
-          <h1 className="flat-title">{props.householdName.trim() || "Good house"}<span className="heading-period">.</span></h1>
-          <div className="week-progress">
-            <div
+          <button className="flat-score-row" type="button" onClick={() => openRoom("chores")}>
+            <span className="flat-score-head">
+              <span className="stat-label">CHORES <span className="flat-score-week">· {props.weekLabel}</span></span>
+              <span className="flat-score-count">{done}/{chores.length} DONE</span>
+            </span>
+            <span
               className="progress-track"
               role="progressbar"
               aria-label="Weekly chores complete"
@@ -305,18 +311,31 @@ function FlatView(props: FlatViewProps) {
               aria-valuenow={done}
             >
               <span style={{ width: `${percent}%` }} />
-            </div>
-            <span>{done}/{chores.length}</span>
-          </div>
-          {overdue > 0 && <p className="flat-overdue">{overdue} overdue: look for the red rings</p>}
-          {mine.length > 0 && (
-            <p className="flat-mine">
-              {mineLeft > 0
-                ? `${mineLeft} ${mineLeft === 1 ? "job" : "jobs"} left for you this week`
-                : "Your jobs are done this week ✓"}
-            </p>
-          )}
-          {ownBalance && <p className={`flat-mine own-balance-${ownBalance.tone}`}>{ownBalance.text}</p>}
+            </span>
+            <span className="flat-score-note">
+              {chores.length === 0
+                ? "None yet. Add them at the whiteboard."
+                : mine.length > 0
+                  ? mineLeft > 0
+                    ? `${mineLeft} left for you`
+                    : "Yours are all done ✓"
+                  : `${chores.length - done} still to do`}
+              {overdue > 0 && <b> · {overdue} overdue</b>}
+            </span>
+          </button>
+          <button className="flat-score-row" type="button" onClick={() => openRoom("bills")}>
+            <span className="flat-score-head">
+              <span className="stat-label">BILLS</span>
+            </span>
+            <span className={`flat-score-value${ownBalance ? ` own-balance-${ownBalance.tone}` : ""}`}>
+              {ownBalance
+                ? ownBalance.text
+                : expenses.length === 0
+                  ? "None yet"
+                  : `${expenses.length} ${expenses.length === 1 ? "bill" : "bills"}`}
+            </span>
+            {expenses.length === 0 && <span className="flat-score-note">Split shared costs at the kitchen table.</span>}
+          </button>
         </div>
         <div className="flat-tools">
           <button

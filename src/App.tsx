@@ -156,8 +156,6 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
   const weekStart = getWeekStart(today);
   const todayKey = toDateInputValue(today);
   const weekKey = toDateInputValue(weekStart);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 6);
 
   const choresWithStatus = chores.map((chore) => {
     const isComplete = chore.completed && chore.completedWeek === weekKey;
@@ -268,7 +266,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
             decor={decor}
             status={status}
             darkMode={darkMode}
-            weekLabel={`WEEK OF ${formatWeek(weekStart).toUpperCase()} — ${formatWeek(weekEnd).toUpperCase()}`}
+            weekLabel={`WEEK OF ${formatWeek(weekStart).toUpperCase()}`}
             alerts={alerts}
             panels={{
               chores: choreBoard,
@@ -312,6 +310,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
               />
             )}
             onUseListView={() => onSetView("list")}
+            onCompleteChore={(id) => updateChore(id, { completed: true, completedWeek: weekKey })}
           />
       </div>
     );
