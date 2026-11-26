@@ -330,7 +330,6 @@ function HomeChat({ houseCode, username, onUsernameChange, active = true, onActi
     <section className="feature-panel chat-panel" aria-labelledby="chat-heading">
       <div className="feature-heading">
         <div>
-          <p className="eyebrow"><span>✳</span> THE HOUSE CHAT</p>
           <h2 id="chat-heading">House chat<span className="heading-period">.</span></h2>
         </div>
         <span className={`chat-connection chat-${connectionState}`} role="status">

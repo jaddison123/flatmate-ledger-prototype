@@ -15,7 +15,6 @@ export default function HouseLeague({ roommates, chores }: HouseLeagueProps) {
 
   return (
     <section className="house-panel" aria-labelledby="league-panel-title">
-      <p className="eyebrow"><span>♛</span> RESETS EVERY MONDAY</p>
       <h2 id="league-panel-title">House league<span className="heading-period">.</span></h2>
       <p className="decor-intro">
         {star

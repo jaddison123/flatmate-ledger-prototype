@@ -32,7 +32,6 @@ function Notes({ notes, onAdd, onRemove }: NotesProps) {
     <section className="feature-panel notes-panel" aria-labelledby="notes-heading">
       <div className="notes-top">
         <div>
-          <p className="eyebrow"><span>✎</span> JUST SO WE REMEMBER</p>
           <h2 id="notes-heading">Notes<span className="heading-period">.</span></h2>
         </div>
         <form className="notes-form" onSubmit={handleSubmit}>
@@ -52,7 +51,7 @@ function Notes({ notes, onAdd, onRemove }: NotesProps) {
       </div>
 
       {notes.length === 0 ? (
-        <p className="notes-empty">No notes yet. Pin a reminder for the house.</p>
+        <p className="notes-empty">No notes yet. Notes are reminders everyone in the house can see, like a landlord visit.</p>
       ) : (
         <ul className="notes-list">
           {notes.map((note) => (

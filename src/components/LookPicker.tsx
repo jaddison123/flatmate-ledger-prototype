@@ -236,7 +236,6 @@ export default function LookPicker({ roommates, personId, meId = null, onChange 
 
   return (
     <section className="house-panel" aria-labelledby="look-panel-title">
-      <p className="eyebrow"><span>☺</span> WHO LIVES HERE</p>
       <h2 id="look-panel-title">
         {person && person.id === meId ? "Make it you" : "Change their look"}<span className="heading-period">.</span>
       </h2>

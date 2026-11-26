@@ -42,7 +42,6 @@ function SlotChoices<S extends DecorSlot>({ slot, current, onChange }: {
 export default function DecorPicker({ decor, onChange }: DecorPickerProps) {
   return (
     <section className="house-panel" aria-labelledby="decor-panel-title">
-      <p className="eyebrow"><span>✦</span> MIRROR, MIRROR</p>
       <h2 id="decor-panel-title">Redecorate<span className="heading-period">.</span></h2>
       <p className="decor-intro">Changes show up in everyone’s flat straight away.</p>
       {DECOR_ORDER.map((slot) => (

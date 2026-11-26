@@ -102,7 +102,7 @@ function HouseSettings({
           </div>
         </form>
       )}
-      <p className="dialog-intro">Add your crew so everyone can take a turn.</p>
+      <p className="dialog-intro">Add everyone who lives here so chores and bills can be shared between you.</p>
       <form className="roommate-form" onSubmit={handleAddRoommate}>
         <label className="field-label" htmlFor="roommate-name">
           NAME <span className="roommate-count">{roommates.length}/{LIMITS.roommates}</span>

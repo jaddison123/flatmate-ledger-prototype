@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useHouseholdData, type Household } from "./hooks/useHouseholdData";
 import { useModalFocus } from "./hooks/useModalFocus";
 import {
@@ -13,6 +13,7 @@ import {
 } from "./lib/house";
 import { formatWeek, getWeekStart, toDateInputValue } from "./lib/week";
 import { sameName } from "./lib/chat";
+import { computeBalances, describeOwnBalance, formatMoney } from "./lib/bills";
 import { hasHouseholdContent } from "../shared/household.mjs";
 import BillTracker from "./components/BillTracker";
 import ChoreBoard from "./components/ChoreBoard";
@@ -97,8 +98,6 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
   const dialogRef = useRef<HTMLElement>(null);
   const [isManagingHousemates, setIsManagingHousemates] = useState(false);
   const [today, setToday] = useState(() => new Date());
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState("");
 
   // Which housemate uses this device ("This is me"). Kept only on this device, per house.
   const [meSaved, setMeSaved] = useState(() => readMe(houseCode));
@@ -137,15 +136,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
     return id;
   }
 
-  // Shown in the hero headline; falls back to the original tagline until a name is set.
   const houseName = householdName.trim();
-  const headlineText = houseName || "Good house";
-
-  function handleSaveHouseName(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setHouseholdName(nameDraft.trim());
-    setIsEditingName(false);
-  }
 
   // Re-render at midnight so "today", overdue chores and the Monday reset stay current.
   useEffect(() => {
@@ -175,8 +166,10 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
     return { ...chore, isComplete, isOverdue };
   });
   const completedCount = choresWithStatus.filter((chore) => chore.isComplete).length;
-  const openCount = chores.length - completedCount;
   const completionPercent = chores.length ? Math.round((completedCount / chores.length) * 100) : 0;
+  const myOpenCount = me
+    ? choresWithStatus.filter((chore) => chore.assigneeId === me.id && !chore.isComplete).length
+    : 0;
 
   const topBar = (
     <TopBar
@@ -284,7 +277,6 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
               bills: billTracker,
               house: (
                 <section className="house-panel" aria-labelledby="house-panel-title">
-                  <p className="eyebrow"><span>⌂</span> SAME ROOF, SAME TEAM</p>
                   <h2 id="house-panel-title">Edit your house<span className="heading-period">.</span></h2>
                   {houseSettings(true)}
                 </section>
@@ -330,98 +322,54 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
       <div className="dashboard">
         {topBar}
 
-        <section className="hero">
-          <div className="hero-copy">
-            <p className="eyebrow"><span>★</span> THE WEEKLY RESET</p>
-            <h1>Good week.<br /><span className="house-name">{headlineText}</span></h1>
-            <p className="hero-description">
-              The little jobs that keep your place running. Shared fairly,
-              checked off together.
-            </p>
-            {isEditingName ? (
-              <form className="house-name-form" onSubmit={handleSaveHouseName}>
-                <label className="field-label" htmlFor="house-name-input">NAME OF YOUR HOUSE</label>
-                <div className="house-name-row">
-                  <input
-                    autoFocus
-                    id="house-name-input"
-                    value={nameDraft}
-                    onChange={(event) => setNameDraft(event.target.value)}
-                    placeholder="e.g. 42 Maple Street"
-                    maxLength={28}
-                  />
-                  <button className="add-chore-button" type="submit">SAVE</button>
-                  <button
-                    className="rotate-button"
-                    type="button"
-                    onClick={() => setIsEditingName(false)}
-                  >CANCEL</button>
-                </div>
-              </form>
-            ) : (
-              <button
-                className="rename-house-button"
-                type="button"
-                onClick={() => {
-                  setNameDraft(houseName);
-                  setIsEditingName(true);
-                }}
-              >
-                <span aria-hidden="true">✎</span> {houseName ? "RENAME YOUR HOUSE" : "NAME YOUR HOUSE"}
-              </button>
-            )}
-          </div>
-          <div className="week-card" aria-label="Current week">
-            <div className="week-card-top">
-              <span className="week-label">ON THE ROSTER</span>
-              <span className="week-spark" aria-hidden="true">✳</span>
-            </div>
-            <div className="week-date">{formatWeek(weekStart)} <span>—</span> {formatWeek(weekEnd)}</div>
-            <div className="week-progress">
-              <div
-                className="progress-track"
-                role="progressbar"
-                aria-label="Weekly chores complete"
-                aria-valuemin={0}
-                aria-valuemax={chores.length || 1}
-                aria-valuenow={completedCount}
-              >
-                <span style={{ width: `${completionPercent}%` }} />
-              </div>
-              <span>{completionPercent}%</span>
-            </div>
-            <div className="week-card-foot">
-              <span>{completedCount} OF {chores.length} DONE</span>
-              <span>YOU’VE GOT THIS <b>↗</b></span>
-            </div>
-          </div>
+        <section className="list-intro" aria-labelledby="list-intro-title">
+          <h1 id="list-intro-title">Share chores and split bills with your housemates.</h1>
+          <p className="list-intro-text">
+            Everyone with your house’s invite link sees the same chores and bill balances, live.
+            {roommates.length < 2 && " Start by adding your housemates and sending them the invite link."}
+          </p>
         </section>
 
-        <section className="stats-row" aria-label="Household chore summary">
-          <div className="stat-block">
-            <span className="stat-label">STILL TO DO</span>
-            <span className="stat-value">{String(openCount).padStart(2, "0")}</span>
-            <span className="stat-note">little wins waiting</span>
-          </div>
-          <div className="stat-block stat-accent">
-            <span className="stat-label">TICKED OFF</span>
-            <span className="stat-value">{String(completedCount).padStart(2, "0")}</span>
-            <span className="stat-note">nice one, team!</span>
-          </div>
-          <div className="stat-block">
-            <span className="stat-label">YOUR HOUSEMATES</span>
-            <span className="stat-value">{String(roommates.length).padStart(2, "0")}</span>
-            <span className="stat-note">
-              {roommates.length === 1 ? "person on the team" : "people on the team"}
+        <section className="summary-row" aria-label="This week at a glance">
+          <a className="summary-tile" href="#chores-heading">
+            <span className="stat-label">CHORES THIS WEEK</span>
+            <span className="summary-value">
+              {chores.length === 0 ? "None yet" : `${completedCount} of ${chores.length} done`}
             </span>
-          </div>
-          <button
-            className="housemates-button"
-            type="button"
-            onClick={() => setIsManagingHousemates(true)}
-          >
-            <span className="housemates-icon" aria-hidden="true">＋</span>
-            <span>EDIT HOUSE<small>Housemates, invite, leave</small></span>
+            <span
+              className="progress-track"
+              role="progressbar"
+              aria-label="Weekly chores complete"
+              aria-valuemin={0}
+              aria-valuemax={chores.length || 1}
+              aria-valuenow={completedCount}
+            >
+              <span style={{ width: `${completionPercent}%` }} />
+            </span>
+            {me && <span className="summary-note">{myOpenCount === 0 ? "None left for you" : `${myOpenCount} left for you`}</span>}
+          </a>
+          <a className="summary-tile" href="#bills-heading">
+            <span className="stat-label">BILLS</span>
+            {me && expenses.length > 0 ? (
+              (() => {
+                const own = describeOwnBalance(computeBalances(expenses).get(me.id) ?? 0);
+                return <span className={`summary-value summary-${own.tone}`}>{own.text}</span>;
+              })()
+            ) : (
+              <span className="summary-value">
+                {expenses.length === 0 ? "None yet" : `${expenses.length} ${expenses.length === 1 ? "bill" : "bills"}`}
+              </span>
+            )}
+            <span className="summary-note">
+              {expenses.length === 0
+                ? "Split a shared cost evenly"
+                : `${formatMoney(Math.round(expenses.reduce((sum, expense) => sum + expense.amount, 0) * 100))} shared in total`}
+            </span>
+          </a>
+          <button className="summary-tile summary-house" type="button" onClick={() => setIsManagingHousemates(true)}>
+            <span className="stat-label">HOUSEMATES</span>
+            <span className="summary-value">{roommates.length}</span>
+            <span className="summary-note summary-action">ADD, INVITE OR RENAME <b aria-hidden="true">→</b></span>
           </button>
         </section>
 
@@ -433,10 +381,12 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
 
         <PanelBoundary label="chores">{choreBoard}</PanelBoundary>
 
-        <PanelBoundary label="notes">{notesBoard}</PanelBoundary>
-
-        <section className="household-features" aria-label="Household tools">
+        <div className="list-bills">
           <PanelBoundary label="bills">{billTracker}</PanelBoundary>
+        </div>
+
+        <section className="household-features" aria-label="Notes and chat">
+          <PanelBoundary label="notes">{notesBoard}</PanelBoundary>
           <PanelBoundary label="chat">
             <HomeChat
               houseCode={houseCode}
@@ -446,11 +396,6 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
             />
           </PanelBoundary>
         </section>
-
-        <footer className="page-footer">
-          <span>CHORE SCORE <b>—</b> MADE FOR THE EVERYDAY.</span>
-          <span>A HOUSE THAT WORKS, WORKS FOR EVERYONE.</span>
-        </footer>
       </div>
 
       {isManagingHousemates && (
@@ -469,7 +414,6 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
           >
             <div className="form-heading">
               <div>
-                <span className="form-kicker">SAME ROOF, SAME TEAM</span>
                 <h2 id="housemates-title">Edit your house.</h2>
               </div>
               <button
@@ -479,7 +423,7 @@ function HouseDashboard({ houseCode, darkMode, onToggleTheme, view, onSetView, o
                 aria-label="Close housemates"
               >×</button>
             </div>
-            {houseSettings(false)}
+            {houseSettings(true)}
           </section>
         </div>
       )}

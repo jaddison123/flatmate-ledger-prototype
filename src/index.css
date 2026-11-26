@@ -161,8 +161,6 @@ a {
 .status-pill,
 .theme-toggle,
 .eyebrow,
-.week-label,
-.week-card-foot,
 .stat-label,
 .board-week-label,
 .filter-tab,
@@ -173,9 +171,7 @@ a {
 .form-kicker,
 .field-label,
 .optional-label,
-.form-footer > span,
-.page-footer,
-.board-footer {
+.form-footer > span {
   font-family: "Arial Narrow", Arial, sans-serif;
   font-stretch: condensed;
   font-weight: 700;
@@ -218,21 +214,6 @@ a {
   line-height: 10px;
 }
 
-.hero {
-  position: relative;
-  min-height: 262px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 38px;
-  padding: 42px 0 38px;
-  border-bottom: 1px solid var(--line);
-}
-
-.hero-copy {
-  max-width: 520px;
-}
-
 .eyebrow {
   margin: 0 0 15px;
   color: var(--muted);
@@ -241,20 +222,6 @@ a {
 
 .eyebrow span {
   margin-right: 5px;
-  color: var(--red);
-}
-
-.hero h1 {
-  margin: 0;
-  font-family: Impact, "Arial Narrow", sans-serif;
-  font-size: clamp(47px, 6vw, 68px);
-  font-weight: 400;
-  letter-spacing: -.025em;
-  line-height: .96;
-  text-transform: uppercase;
-}
-
-.hero h1 span {
   color: var(--red);
 }
 
@@ -267,44 +234,10 @@ a {
   line-height: 1.65;
 }
 
-.week-card {
-  z-index: 1;
-  width: 270px;
-  flex: 0 0 270px;
-  padding: 19px 20px 15px;
-  border: 1px solid var(--line);
-  background: var(--paper-raised);
-  box-shadow: 5px 5px 0 var(--paper-muted);
-}
-
-.week-card-top,
-.week-card-foot,
 .week-progress {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.week-label {
-  color: var(--muted);
-  font-size: 9px;
-}
-
-.week-spark {
-  color: var(--red);
-  font-size: 18px;
-}
-
-.week-date {
-  margin-top: 15px;
-  font-family: Impact, "Arial Narrow", sans-serif;
-  font-size: 24px;
-  letter-spacing: .025em;
-}
-
-.week-date span {
-  color: var(--red);
-  font-size: 16px;
 }
 
 .week-progress {
@@ -329,102 +262,11 @@ a {
   transition: width 180ms ease;
 }
 
-.week-card-foot {
-  margin-top: 12px;
-  color: var(--muted);
-  font-size: 8px;
-}
-
-.week-card-foot b {
-  color: var(--red);
-  font-size: 13px;
-}
-
-.stats-row {
-  min-height: 107px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr) 1.25fr;
-  border-bottom: 1px solid var(--line);
-}
-
-.stat-block {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-content: center;
-  align-items: end;
-  column-gap: 13px;
-  padding: 17px 18px 16px 0;
-  border-right: 1px solid var(--line);
-}
-
-.stat-block + .stat-block {
-  padding-left: 20px;
-}
-
 .stat-label {
   grid-column: 1 / -1;
   margin-bottom: 6px;
   color: var(--muted);
   font-size: 9px;
-}
-
-.stat-value {
-  color: var(--red);
-  font-family: Impact, "Arial Narrow", sans-serif;
-  font-size: 29px;
-  line-height: 1;
-}
-
-.stat-note {
-  padding-bottom: 2px;
-  color: var(--muted);
-  font-family: Arial, sans-serif;
-  font-size: 10px;
-}
-
-.housemates-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 0 16px;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  cursor: pointer;
-  text-align: left;
-}
-
-.housemates-button > span:last-child {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .1em;
-}
-
-.housemates-button small {
-  display: block;
-  margin-top: 4px;
-  color: var(--muted);
-  font-family: Arial, sans-serif;
-  font-size: 10px;
-  font-weight: 400;
-  letter-spacing: 0;
-}
-
-.housemates-icon {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--red);
-  color: var(--red);
-  font-size: 22px;
-  transition: color 140ms ease, background 140ms ease;
-}
-
-.housemates-button:hover .housemates-icon {
-  background: var(--red);
-  color: #fff;
 }
 
 .storage-alert {
@@ -437,8 +279,112 @@ a {
   font-size: 12px;
 }
 
+/* ---------- List view: what the app is for, then this week at a glance ---------- */
+.list-intro {
+  padding: 30px 0 22px;
+}
+
+.list-intro h1 {
+  max-width: 720px;
+  margin: 0;
+  font-family: Impact, "Arial Narrow", sans-serif;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 400;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.list-intro-text {
+  max-width: 560px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-tile {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--red);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.summary-tile:hover {
+  border-color: var(--red);
+  background: var(--red-soft);
+}
+
+.summary-tile .stat-label {
+  margin: 0;
+}
+
+.summary-value {
+  font-family: Impact, "Arial Narrow", sans-serif;
+  font-size: 24px;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.summary-owe { color: var(--red); }
+.summary-owed { color: var(--green); }
+
+.summary-note {
+  color: var(--muted);
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+}
+
+.summary-action {
+  margin-top: auto;
+  color: var(--red);
+  font-family: "Arial Narrow", Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+}
+
+.summary-tile .progress-track {
+  flex: none;
+  height: 5px;
+}
+
 .chores-section {
   padding-top: 37px;
+}
+
+.section-description {
+  max-width: 560px;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.list-bills {
+  margin-top: 40px;
+}
+
+/* Notes sit beside the chat in the list view, so they line up with its top edge. */
+.household-features .notes-panel {
+  margin-top: 0;
 }
 
 .section-heading {
@@ -866,34 +812,6 @@ a {
   font-size: 12px;
 }
 
-.board-footer {
-  display: flex;
-  justify-content: space-between;
-  padding: 13px 0;
-  color: var(--muted);
-  font-size: 8px;
-}
-
-.board-footer b {
-  margin-right: 4px;
-  color: var(--red);
-}
-
-.page-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 25px;
-  padding: 16px 0;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 8px;
-}
-
-.page-footer b {
-  color: var(--red);
-}
-
 .household-features {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr);
@@ -948,7 +866,7 @@ a {
 
 .bill-balances {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 8px;
 }
 
@@ -1355,32 +1273,19 @@ a {
     padding: 0 34px;
   }
 
-  .hero {
-    gap: 22px;
-  }
-
-  .week-card {
-    width: 240px;
-    flex-basis: 240px;
-  }
-
-  .stats-row {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .stat-block:nth-child(3) {
-    border-right: 0;
-  }
-
-  .housemates-button {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-    padding: 12px 0;
-    border-top: 1px solid var(--line);
-  }
-
   .household-features {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .summary-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .summary-value {
+    font-size: 21px;
   }
 }
 
@@ -1412,49 +1317,9 @@ a {
     font-size: 8px;
   }
 
-  .hero {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 25px;
-    padding: 32px 0 27px;
-  }
-
-  .hero h1 {
-    font-size: clamp(43px, 12vw, 59px);
-  }
-
   .hero-description {
     margin-top: 11px;
     font-size: 12px;
-  }
-
-  .week-card {
-    width: 100%;
-    flex: initial;
-  }
-
-  .stats-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .stat-block {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    padding: 14px 6px 12px 0;
-  }
-
-  .stat-block + .stat-block {
-    padding-left: 10px;
-  }
-
-  .stat-value {
-    font-size: 26px;
-  }
-
-  .stat-note {
-    font-size: 9px;
   }
 
   .stat-label {
@@ -1587,11 +1452,6 @@ a {
 
   .form-footer .add-chore-button {
     align-self: flex-end;
-  }
-
-  .board-footer,
-  .page-footer {
-    font-size: 7px;
   }
 }
 
@@ -1798,14 +1658,6 @@ a {
 }
 .wa-send:disabled { opacity: .5; cursor: default; }
 
-/* ---------- Household name ---------- */
-.hero-copy { min-width: 0; }
-.hero h1 .house-name {
-  display: block;
-  overflow-wrap: anywhere;
-  /* Long names shrink a little so they stay on the page */
-  font-size: clamp(38px, 5vw, 60px);
-}
 .status-pill-name {
   max-width: 220px;
   overflow: hidden;
@@ -1828,19 +1680,6 @@ a {
 .rename-house-button:hover { border-color: var(--red); color: var(--red); }
 .house-name-form { margin-top: 16px; max-width: 460px; }
 .house-name-form .field-label { display: block; margin-bottom: 6px; }
-.house-name-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.house-name-row input {
-  flex: 1 1 180px;
-  min-width: 0;
-  padding: 10px 11px;
-  border: 1px solid var(--line);
-  border-radius: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: Arial, sans-serif;
-  font-size: 13px;
-}
-
 
 /* ---------- Notes ---------- */
 .notes-panel {
@@ -3239,11 +3078,6 @@ a {
 
 .room-sheet .form-row {
   grid-template-columns: 1fr;
-}
-
-.room-sheet .board-footer {
-  flex-direction: column;
-  gap: 4px;
 }
 
 @keyframes sheet-in-right {

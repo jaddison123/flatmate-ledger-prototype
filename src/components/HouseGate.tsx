@@ -69,11 +69,10 @@ function HouseGate({ notice, lostCopy, onEnter }: HouseGateProps) {
 
   return (
     <section className="gate" aria-labelledby="gate-heading">
-      <p className="eyebrow"><span>★</span> SAME ROOF, SAME TEAM</p>
-      <h1 id="gate-heading">Set up<br /><span className="house-name">your house.</span></h1>
+      <h1 id="gate-heading">Share chores.<br /><span className="house-name">Split bills.</span></h1>
       <p className="hero-description">
-        Chores, bills and notes are shared live with everyone who has your house’s invite link,
-        on any phone or laptop.
+        A shared chore rota and bill splitter for your house. Everyone with the invite link sees the
+        same chores and balances, live, on any phone or laptop.
       </p>
 
       {notice && <p className="storage-alert" role="alert">{notice}</p>}

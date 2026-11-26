@@ -112,8 +112,7 @@ function BillTracker({
     <section className="feature-panel bills-panel" aria-labelledby="bills-heading">
       <div className="feature-heading">
         <div>
-          <p className="eyebrow"><span>£</span> KEEP IT FAIR</p>
-          <h2 id="bills-heading">Bills &amp; balances<span className="heading-period">.</span></h2>
+          <h2 id="bills-heading">Bills<span className="heading-period">.</span></h2>
         </div>
         <button
           className="add-chore-button"
@@ -125,7 +124,7 @@ function BillTracker({
         </button>
       </div>
       <p className="feature-description">
-        Record who paid. Each bill is split evenly between the people you select.
+        Record who paid for a shared cost. It’s split evenly between the people you pick, and the balances show who owes whom.
       </p>
 
       {own && <p className={`own-balance own-balance-${own.tone}`}>{own.text}</p>}
@@ -158,7 +157,6 @@ function BillTracker({
         <form className="inline-form bill-form" onSubmit={handleAddBill}>
           <div className="form-heading">
             <div>
-              <span className="form-kicker">SHARE A HOUSEHOLD COST</span>
               <h3>Add a bill.</h3>
             </div>
             <button

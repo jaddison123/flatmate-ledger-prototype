@@ -89,8 +89,10 @@ function ChoreBoard({
     <section className="chores-section" aria-labelledby="chores-heading">
       <div className="section-heading">
         <div>
-          <p className="eyebrow"><span>✳</span> FAIR’S FAIR</p>
-          <h2 id="chores-heading">The chore board<span className="heading-period">.</span></h2>
+          <h2 id="chores-heading">Chores<span className="heading-period">.</span></h2>
+          <p className="section-description">
+            Assign the jobs your house shares. Ticks reset every Monday; rotating passes each chore to the next person.
+          </p>
         </div>
         <div className="board-actions">
           <button
@@ -130,15 +132,14 @@ function ChoreBoard({
             </button>
           ))}
         </div>
-        <span className="board-week-label">WEEKLY HOUSEHOLD ROUTINE <span>•</span> WEEK {formatWeek(weekStart).toUpperCase()}</span>
+        <span className="board-week-label">WEEK OF {formatWeek(weekStart).toUpperCase()}</span>
       </div>
 
       {isAddingChore && (
         <form className="inline-form chore-form" onSubmit={handleAddChore}>
           <div className="form-heading">
             <div>
-              <span className="form-kicker">ADD TO THE ROSTER</span>
-              <h3>A little job, handled.</h3>
+              <h3>Add a chore.</h3>
             </div>
             <button
               className="icon-button"
@@ -238,21 +239,21 @@ function ChoreBoard({
             <span className="empty-icon" aria-hidden="true">{chores.length === 0 ? "✳" : "✓"}</span>
             <h3>
               {chores.length === 0
-                ? "A fresh board."
+                ? "No chores yet."
                 : activeFilter === "mine"
                   ? "Nothing on your name."
                   : activeFilter === "open"
-                    ? "All caught up!"
+                    ? "All done."
                     : "Nothing checked off yet."}
             </h3>
             <p>
               {chores.length === 0
-                ? "Add your first household task and share the load."
+                ? "Add a job, give it to a housemate, and tick it off when it’s done."
                 : activeFilter === "mine"
-                  ? "No chores are assigned to you. Lucky you, or grab one from the list."
+                  ? "No chores are assigned to you."
                   : activeFilter === "open"
-                    ? "You’ve handled everything on the list. Go enjoy it."
-                    : "Tick off a chore when it’s done. We’ll keep score."}
+                    ? "Every chore is ticked off this week."
+                    : "Tick a chore when it’s done."}
             </p>
             {chores.length === 0 && (
               <button className="add-chore-button" type="button" onClick={() => setIsAddingChore(true)}>
@@ -261,10 +262,6 @@ function ChoreBoard({
             )}
           </div>
         )}
-      </div>
-      <div className="board-footer">
-        <span><b>✳</b> GOOD ROOMMATES. GREAT HOUSE.</span>
-        <span>ONE WEEK AT A TIME.</span>
       </div>
     </section>
   );
